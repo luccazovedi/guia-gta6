@@ -1,0 +1,21 @@
+{
+  "name": "guia-gta6",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@fontsource-variable/bricolage-grotesque": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "next": "^15.5.29",
+    "psn-api": "^2.18.1",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=20"
+  }
+}
