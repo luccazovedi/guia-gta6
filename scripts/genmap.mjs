@@ -114,7 +114,17 @@ function cityBlocks(cx, cy, w, h, step, rot, clip) {
 }
 const parks = [blob(850, 640, 8, 5), blob(822, 600, 6, 5), blob(880, 610, 5, 4), blob(958, 690, 3, 9)];
 
-// estradas
+// detalhes extras: cânion, rios, trilhos, aeroporto, porto, praias, campos de golfe
+const canyon = [blob(372, 258, 34, 20, 16, 0.3), blob(352, 240, 18, 10), blob(392, 272, 16, 9)];
+const rivers = [
+  [[300, 230], [312, 262], [322, 292], [336, 330], [352, 372], [372, 420], [392, 470]], // Emerald River
+  [[600, 150], [585, 175], [570, 192], [560, 220], [552, 260], [548, 320], [552, 380]],
+  [[340, 100], [362, 118], [390, 128], [420, 140]],
+  [[700, 360], [690, 420], [680, 470], [664, 474]],
+];
+const rail = [[140, 300], [210, 330], [260, 350], [320, 300], [372, 262], [430, 300], [500, 380], [540, 430], [620, 500], [700, 560], [790, 610], [840, 650]];
+const golf = [blob(958, 716, 4, 10, 10, 0.2), blob(800, 238, 12, 8), blob(444, 596, 6, 4), blob(784, 262, 6, 4), blob(304, 436, 6, 4)];
+
 const highways = [
   [[872, 55], [884, 160], [896, 260], [906, 380], [900, 470], [880, 560], [858, 640], [836, 720], [812, 760]],
   [[180, 330], [240, 370], [330, 388], [440, 415], [548, 420], [640, 470], [730, 535], [820, 600]],
@@ -162,7 +172,7 @@ ${keys.concat(barrier).map((k) => `<path d="${poly(k)}" fill="none" stroke="#2b5
 <!-- Gloriana -->
 <rect x="60" y="0" width="880" height="50" fill="#262b26"/><path d="M60 50 L940 50" stroke="#5a5f55" stroke-width="1.2" stroke-dasharray="6 4"/>
 <!-- terra -->
-<path d="${poly(coast)}" fill="url(#land)" stroke="#a89a6c" stroke-width="1.4" stroke-opacity=".55"/>
+<path d="${poly(coast)}" fill="url(#land)" stroke="#b5a574" stroke-width="2" stroke-opacity=".6"/>
 ${keys.concat(barrier).map((k) => `<path d="${poly(k)}" fill="#3a3d30" stroke="#b3a571" stroke-width=".9" stroke-opacity=".7"/>`).join("")}
 <g clip-path="url(#landclip)">
   <g fill="#38412f" opacity=".7">${fields}</g>
@@ -177,6 +187,15 @@ ${keys.concat(barrier).map((k) => `<path d="${poly(k)}" fill="#3a3d30" stroke="#
   <g fill="#454652">${cityBlocks(860, 640, 170, 220, 7, -4, cityPoly)}</g>
   <g fill="#3b3c46">${cityBlocks(250, 375, 60, 46, 6, 8)}${cityBlocks(535, 440, 56, 46, 6, -3)}${cityBlocks(790, 250, 44, 40, 6, 5)}</g>
   ${parks.map((p) => `<path d="${poly(p)}" fill="#2f4a2b"/>`).join("")}
+  ${canyon.map((c, i) => `<path d="${poly(c)}" fill="${i ? "#6b4a35" : "#5a3f2e"}" opacity=".85"/>`).join("")}
+  ${golf.map((g) => `<path d="${poly(g)}" fill="#3f6a34"/>`).join("")}
+  ${rivers.map((r) => `<path d="${smooth(r)}" stroke="#244766" stroke-width="2.4" fill="none" stroke-linecap="round"/>`).join("")}
+  <g fill="#3b3c46">${M.TOWNS.filter((t) => !["Bayside","Crosstown","Peacock Bay","Tequesta Retreat","Leaf Links","Gloriana Key"].includes(t.name)).map((t) => cityBlocks(t.x, t.y, 22, 16, 4, r(-15, 15))).join("")}</g>
+  <!-- aeroporto (VCIA) -->
+  <g transform="rotate(-18 800 636)"><rect x="770" y="628" width="60" height="16" rx="2" fill="#2a2b31"/><rect x="772" y="632" width="56" height="2.4" fill="#9a9ca6"/><rect x="772" y="639" width="56" height="2.4" fill="#9a9ca6"/></g>
+  <!-- porto -->
+  <g fill="#2a2b31">${Array.from({ length: 6 }, (_, i) => `<rect x="${884 + i * 4}" y="662" width="2.6" height="14"/>`).join("")}</g>
+  <path d="${smooth(rail)}" stroke="#141519" stroke-width="2.2" fill="none"/><path d="${smooth(rail)}" stroke="#7d7f88" stroke-width="1" fill="none" stroke-dasharray="2 2"/>
   <!-- estradas -->
   ${minorRoads.map((p) => `<path d="${smooth(p)}" stroke="#575a50" stroke-width=".9" fill="none" stroke-linecap="round"/>`).join("")}
   ${mainRoads.map((p) => `<path d="${smooth(p)}" stroke="#1d2025" stroke-width="3.4" fill="none" stroke-linecap="round"/><path d="${smooth(p)}" stroke="#8e909a" stroke-width="1.8" fill="none" stroke-linecap="round"/>`).join("")}
@@ -186,5 +205,28 @@ ${highways.map((p) => `<path d="${smooth(p)}" stroke="#1a1c20" stroke-width="5.2
 <!-- pontes para as ilhas-barreira -->
 <path d="M930 600 L952 598 M905 702 L948 702 M920 640 L948 640" stroke="#8e909a" stroke-width="1.6"/>
 </svg>`;
-writeFileSync(new URL("../public/leonida.svg", import.meta.url), svg);
+writeFileSync(new URL("./leonida.svg", import.meta.url), svg); // fonte (não publicada)
+// ---------- tiles (WebP) para Leaflet ----------
+const sharp = (await import("sharp")).default;
+const { mkdirSync, rmSync } = await import("node:fs");
+const out = new URL("../public/tiles/", import.meta.url).pathname;
+rmSync(out, { recursive: true, force: true });
+const T = 256;
+let count = 0;
+for (const z of [-2, -1, 0, 1, 2]) {
+  const size = Math.round(1000 * 2 ** z);
+  const img = await sharp(Buffer.from(svg), { density: 72 * (size / 2000) * 1 }).resize(size, size).png().toBuffer();
+  const n = Math.ceil(size / T);
+  for (let x = 0; x < n; x++) {
+    mkdirSync(`${out}${z}/${x}`, { recursive: true });
+    for (let y = 0; y < n; y++) {
+      const w = Math.min(T, size - x * T), h = Math.min(T, size - y * T);
+      await sharp(img).extract({ left: x * T, top: y * T, width: w, height: h })
+        .extend({ right: T - w, bottom: T - h, background: "#0f2134" })
+        .webp({ quality: 78 }).toFile(`${out}${z}/${x}/${y}.webp`);
+      count++;
+    }
+  }
+}
+console.log("tiles", count);
 console.log("ok", (svg.length / 1024).toFixed(0) + " KB", JSON.stringify(keyCenters.map(p=>p.map(Math.round))));

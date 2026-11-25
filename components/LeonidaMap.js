@@ -9,19 +9,23 @@ import {
   Bird, Spade, BookOpen, Watch, Flower2, Waves, ScanLine, Flag, Target, Drone, CircleDot, Circle, FlagTriangleRight,
   Zap, Landmark, Vault, ShoppingBag, Gem, Skull, Star, House, Store, Activity, Trophy, Radio,
 } from "lucide-react";
-import { GROUPS, CAT, REGIONS_MAP, DISTRICTS, MARKERS } from "../lib/mapdata";
+import { GROUPS, CAT, REGIONS_MAP, DISTRICTS, MARKERS, POINTS, TOWNS } from "../lib/mapdata";
+
+// CRS com y para baixo (coordenadas 0–1000 do mapa)
+const CRS = L.extend({}, L.CRS.Simple, { transformation: new L.Transformation(1, 0, 1, 0) });
 
 const ICONS = { Bird, Spade, BookOpen, Watch, Flower2, Waves, ScanLine, Flag, Target, Drone, CircleDot, Circle, FlagTriangleRight, Zap, Landmark, Vault, ShoppingBag, Gem, Skull, Star, House, Store, Activity, Trophy, Radio };
 const CatIcon = ({ k, size = 16 }) => { const I = ICONS[CAT[k]?.icon] || MapPin; return <I size={size} />; };
 const svgCache = {};
 const iconSvg = (k) => (svgCache[k] ||= renderToStaticMarkup(<CatIcon k={k} size={15} />));
-const toLL = (m) => [1000 - m.y, m.x];
+const toLL = (m) => [m.y, m.x];
 const regionOf = (m) => {
+  if (m.area) return m.area;
   let best = null, d = Infinity;
   for (const r of REGIONS_MAP) { const dd = (r.x - m.x) ** 2 + (r.y - m.y) ** 2; if (dd < d) { d = dd; best = r; } }
   return best?.name;
 };
-const JUMPS = [["Vice City", 870, 640, 1.6], ["Leonida Keys", 560, 915, 0.9], ["Grassrivers", 610, 715, 0.8], ["Port Gellhorn", 250, 370, 1.2], ["Ambrosia", 560, 440, 1.1], ["Mount Kalaga", 470, 150, 0.8]];
+const JUMPS = [["Vice City", 870, 640, 2], ["Leonida Keys", 600, 910, 1], ["Grassrivers", 610, 715, 1], ["Port Gellhorn", 250, 370, 1], ["Ambrosia", 560, 440, 1], ["Mount Kalaga", 470, 150, 1]];
 
 function compress(file) {
   return new Promise((res, rej) => {
@@ -64,6 +68,7 @@ export default function LeonidaMap({ state, update, fav, onBack }) {
 
   const markers = useMemo(() => [
     ...MARKERS,
+    ...POINTS,
     ...pins.map((p, i) => ({ ...p, id: p.id || "pin" + i, cat: CAT[p.kind] ? p.kind : "outro", idx: i, mine: true })),
   ], [pins]);
   const passes = (m) => !hidden[m.cat] && !(hideFound && found[m.id]) && !(onlyFavs && !favs["p:" + m.id]);
@@ -75,28 +80,29 @@ export default function LeonidaMap({ state, update, fav, onBack }) {
   useEffect(() => {
     const bounds = [[0, 0], [1000, 1000]];
     const map = L.map(el.current, {
-      crs: L.CRS.Simple, minZoom: -1.5, maxZoom: 3, zoomSnap: 0.25, zoomDelta: 0.5,
+      crs: CRS, minZoom: -2, maxZoom: 3, zoomSnap: 1, zoomDelta: 1, wheelPxPerZoomLevel: 90,
       zoomControl: false, attributionControl: false, maxBounds: [[-150, -150], [1150, 1150]], maxBoundsViscosity: 0.8,
     });
-    L.imageOverlay("/leonida.svg", bounds).addTo(map);
+    L.tileLayer("/tiles/{z}/{x}/{y}.webp", { tileSize: 256, minZoom: -2, maxZoom: 3, minNativeZoom: -2, maxNativeZoom: 2, noWrap: true, bounds, keepBuffer: 3, updateWhenZooming: false }).addTo(map);
     // enquadra pela altura útil (celular em pé corta as laterais, como nos mapas de jogo)
     const h = el.current.clientHeight - (window.innerWidth < 900 ? 250 : 40);
     const w = el.current.clientWidth - (window.innerWidth < 900 ? 0 : 380);
     const z = Math.log2(Math.max(h, 300) / 1000);
-    map.setView([1000 - 560, window.innerWidth < 900 ? 640 : 560], Math.max(z, Math.log2(Math.max(w, 300) / 1000)), { animate: false });
+    map.setView([560, window.innerWidth < 900 ? 640 : 560], Math.round(Math.max(z, Math.log2(Math.max(w, 300) / 1000))), { animate: false });
     if (window.innerWidth >= 900) map.panBy([-190, 0], { animate: false });
 
     // rótulos com tamanho fixo na tela
-    const lbl = (x, y, t, cls) => L.marker([1000 - y, x], { interactive: false, keyboard: false, icon: L.divIcon({ className: "lm-lbl " + cls, html: `<span>${t}</span>`, iconSize: [0, 0] }) });
+    const lbl = (x, y, t, cls) => L.marker([y, x], { interactive: false, keyboard: false, icon: L.divIcon({ className: "lm-lbl " + cls, html: `<span>${t}</span>`, iconSize: [0, 0] }) });
     const regions = L.layerGroup(REGIONS_MAP.map((r) => lbl(r.x, r.y, r.name.replace(" National Park", ""), r.id === "vice" ? "big" : "reg"))).addTo(map);
     const water = L.layerGroup([lbl(150, 760, "Golfo", "water"), lbl(975, 330, "Oceano Atlântico", "water vert"), lbl(628, 426, "Lake Leonida", "water sm"), lbl(490, 30, "Gloriana", "water")]).addTo(map);
     const districts = L.layerGroup(DISTRICTS.map((d) => lbl(d.x, d.y, d.name, "dist")));
-    const onZoom = () => { const zz = map.getZoom(); if (zz >= 0.75) districts.addTo(map); else districts.remove(); el.current?.classList.toggle("far", zz < -0.5); };
+    const towns = L.layerGroup(TOWNS.map((t) => lbl(t.x, t.y - 9, t.name, "town")));
+    const onZoom = () => { const zz = map.getZoom(); if (zz >= 0.75) districts.addTo(map); else districts.remove(); if (zz >= 0) towns.addTo(map); else towns.remove(); el.current?.classList.toggle("far", zz < -0.5); el.current?.classList.toggle("mid", zz >= -0.5 && zz < 0.75); };
     map.on("zoomend", onZoom); onZoom();
     layerRef.current = L.layerGroup().addTo(map);
     map.on("click", (e) => {
       if (!addingRef.current) return;
-      const x = +e.latlng.lng.toFixed(1), y = +(1000 - e.latlng.lat).toFixed(1);
+      const x = +e.latlng.lng.toFixed(1), y = +e.latlng.lat.toFixed(1);
       setDraft({ id: "pin-" + Date.now(), name: "", kind: "flamingo", note: "", x, y, isNew: true });
       addingRef.current = false; setAdding(false);
     });
@@ -125,7 +131,7 @@ export default function LeonidaMap({ state, update, fav, onBack }) {
   const foundCount = markers.filter((m) => found[m.id]).length;
   const ql = q.trim().toLowerCase();
   const results = ql.length > 1
-    ? [...REGIONS_MAP.map((r) => ({ ...r, region: true })), ...DISTRICTS.map((d) => ({ ...d, region: true, county: "Bairro de Vice City", text: "Bairro de Vice City." })), ...markers]
+    ? [...REGIONS_MAP.map((r) => ({ ...r, region: true })), ...DISTRICTS.map((d) => ({ ...d, region: true, county: "Bairro de Vice City", text: "Bairro de Vice City." })), ...TOWNS.map((t) => ({ ...t, region: true, county: "Localidade", text: "" })), ...markers]
         .filter((m) => (m.name + " " + (m.note || "") + " " + (notes[m.id] || "")).toLowerCase().includes(ql)).slice(0, 8)
     : [];
 
@@ -152,7 +158,7 @@ export default function LeonidaMap({ state, update, fav, onBack }) {
       {results.length > 0 && (
         <ul className="lm-results">
           {results.map((m, i) => (
-            <li key={i} onClick={() => { flyTo(m, m.region && !m.county?.startsWith("Bairro") ? 0.8 : 2); if (!m.region) select(m); setQ(""); setDrawer("peek"); }}>
+            <li key={i} onClick={() => { flyTo(m, m.region && !m.county?.startsWith("Bairro") ? 1 : 2); if (!m.region) select(m); setQ(""); setDrawer("peek"); }}>
               <span className="cdot" style={{ background: m.region ? "#6d28d9" : CAT[m.cat]?.color }}>{m.region ? <Navigation size={12} /> : <CatIcon k={m.cat} size={12} />}</span>
               <span className="grow">{m.name}<small>{m.region ? m.county || "Região" : CAT[m.cat]?.label}</small></span>
             </li>
@@ -205,7 +211,7 @@ export default function LeonidaMap({ state, update, fav, onBack }) {
           })}
         </div>
       ))}
-      <p className="lm-fine">Mapa ilustrativo original com posições aproximadas; não é o mapa oficial do jogo.</p>
+      <p className="lm-fine">Mapa ilustrativo original. Os pontos vêm de guias públicos (PowerPyx, Bloxodes) e ficam na área indicada, com posição aproximada. Não é o mapa oficial do jogo.</p>
     </>
   );
 
@@ -239,7 +245,7 @@ export default function LeonidaMap({ state, update, fav, onBack }) {
             <button className="round small" onClick={() => setSel(null)} aria-label="Fechar"><X size={16} /></button>
           </div>
           <h2>{sel.name}</h2>
-          <p className="mk-region"><Navigation size={13} /> {regionOf(sel)}</p>
+          <p className="mk-region"><Navigation size={13} /> {regionOf(sel)}{sel.approx ? " · posição aproximada" : ""}</p>
           <p className="mk-text">{sel.mine ? sel.note || "Marcador pessoal." : sel.text}</p>
           <div className="mk-actions">
             <button className={found[sel.id] ? "on found" : ""} onClick={() => toggleFound(sel.id)}><Check size={18} />{found[sel.id] ? "Encontrado" : "Encontrei"}</button>

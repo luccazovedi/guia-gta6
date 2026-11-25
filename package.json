@@ -19,5 +19,8 @@
   "private": true,
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.5"
   }
 }

@@ -724,3 +724,10 @@ main.loading { opacity: .4; }
 .lm-lbl.water.sm span { font-size: 9px; letter-spacing: .2em; }
 .lm-lbl.water.vert span { transform: translate(-50%, -50%) rotate(90deg); }
 .lm-map.far .lm-lbl.reg span { font-size: 10px; }
+.lm-lbl.town span { font-size: 9.5px; font-weight: 700; letter-spacing: .12em; color: #cfc6dd; }
+.leaflet-tile { image-rendering: auto; }
+
+.lm-map.far .lm-badge { transform: scale(.6); }
+.lm-map.mid .lm-badge { transform: scale(.78); }
+.lm-map.far .lm-badge:hover, .lm-map.far .lm-badge.active { transform: scale(.9); }
+.lm-map.mid .lm-badge:hover, .lm-map.mid .lm-badge.active { transform: scale(1); }
