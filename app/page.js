@@ -42,12 +42,12 @@ export default function App() {
         <main className={ready ? "" : "loading"}>
           {view === "inicio" && <HomeView {...ctx} />}
           {view === "guias" && <Guides {...ctx} />}
-          {view === "mapa" && (
+          {view === "mapa" && <MapTabs>{(
             <LeonidaMap pins={state.pins} visited={state.visited || {}}
               onToggleVisited={(id) => update((st) => ({ visited: { ...(st.visited || {}), [id]: !(st.visited || {})[id] } }))}
               onAddPin={(p) => update((st) => ({ pins: [...st.pins, p] }))}
               onRemovePin={(i) => update((st) => ({ pins: st.pins.filter((_, j) => j !== i) }))} />
-          )}
+          )}</MapTabs>}
           {view === "missoes" && <Missions {...ctx} />}
           {view === "busca" && <SearchView {...ctx} />}
           {view === "trofeus" && <Trophies {...ctx} />}
@@ -72,6 +72,29 @@ export default function App() {
         {sheet && <MissionSheet m={sheet} {...ctx} close={() => setSheet(null)} />}
       </div>
     </div>
+  );
+}
+
+/* ---------- Mapa: nosso + IGN incorporado ---------- */
+const IGN_URL = "https://www.ign.com/maps/gta-6/leonida";
+function MapTabs({ children }) {
+  const [src, setSrc] = useState("nosso");
+  return (
+    <>
+      <div className="segs">
+        <button className={src === "nosso" ? "on" : ""} onClick={() => setSrc("nosso")}>Nosso mapa</button>
+        <button className={src === "ign" ? "on" : ""} onClick={() => setSrc("ign")}>Mapa da IGN</button>
+      </div>
+      {src === "nosso" ? children : (
+        <div className="ign">
+          <iframe src={IGN_URL} title="Mapa interativo de GTA 6 da IGN" loading="lazy" allow="fullscreen" referrerPolicy="no-referrer-when-downgrade" />
+          <div className="glass ign-note">
+            <p className="muted">Mapa interativo da IGN, exibido do site deles. Se aparecer em branco ou bloqueado, a IGN não permite ser aberta dentro de outros sites — abra direto:</p>
+            <a className="cta full linkbtn" href={IGN_URL} target="_blank" rel="noreferrer">Abrir na IGN ↗</a>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 

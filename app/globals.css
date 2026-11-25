@@ -295,3 +295,6 @@ main.loading { opacity: .4; }
 .mx-state { font-family: var(--f-mono); font-weight: 600; fill: #a39b84; letter-spacing: .4em; pointer-events: none; }
 .mx-pin { cursor: pointer; }
 .mx-glyph { font: 700 15px var(--f-display); fill: #fff; pointer-events: none; }
+.ign { display: grid; gap: 10px; }
+.ign iframe { width: 100%; height: 72vh; border: 1px solid var(--edge); border-radius: 26px; background: #fff; box-shadow: 0 14px 44px rgba(80, 30, 120, .25); }
+.ign-note { margin: 0; }
