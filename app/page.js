@@ -4,15 +4,18 @@ import dynamic from "next/dynamic";
 import {
   User, Info, Flag, PlayCircle, ArrowRight, Check, Megaphone, Compass, Library, Users, Map as MapIcon,
   Heart, Radio, Search, Home as HomeIcon, Trophy, Target, ChevronRight, ChevronLeft, X, Lightbulb, RefreshCw,
+  Lock, Crown, LogOut, Mail, Music, Sparkles, ExternalLink, Fish, Building2, Mic, Landmark, Anchor, Crosshair,
+  Package, Gem, Disc3, Cloud, ShieldCheck, Waves, Wrench,
 } from "lucide-react";
 import { CHAPTERS, MISSIONS, TROPHIES, COMPLETION, RADIOS, CHARACTERS, TIPS, NEWS, REGIONS } from "../lib/data";
-import { useProgress, stats, applyPsn } from "../lib/store";
+import { useProgress, stats, applyPsn, useCloudSync } from "../lib/store";
+import { supabase } from "../lib/supabase";
 
 const LeonidaMap = dynamic(() => import("../components/LeonidaMap"), { ssr: false });
 
 const TITLES = {
   guias: "Guias", mapa: "Mapa", missoes: "Missões", busca: "Busca", trofeus: "Troféus", cem: "Tracker 100%",
-  radio: "Rádio", personagens: "Personagens", favoritos: "Favoritos", psn: "Conta PSN", novidades: "Novidades",
+  radio: "Rádio", personagens: "Personagens", favoritos: "Favoritos", psn: "Conta", novidades: "Novidades",
 };
 const TABBAR = [["inicio", HomeIcon], ["guias", Library], ["mapa", MapIcon], ["missoes", Flag], ["busca", Search]];
 
@@ -22,11 +25,25 @@ export default function App() {
   const [prev, setPrev] = useState("inicio");
   const [sheet, setSheet] = useState(null);
   const s = useMemo(() => stats(state), [state]);
+  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState(null);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ?? null));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, sess) => setUser(sess?.user ?? null));
+    return () => sub.subscription.unsubscribe();
+  }, []);
+  useEffect(() => {
+    if (!user) { setProfile(null); return; }
+    supabase.from("profiles").select("is_premium, premium_since").eq("id", user.id).maybeSingle()
+      .then(({ data }) => setProfile(data || { is_premium: false }));
+  }, [user]);
+  const cloud = useCloudSync(state, update, ready, user);
+  const premium = !!profile?.is_premium;
 
   const go = (v) => { setPrev(view); setView(v); window.scrollTo({ top: 0 }); };
   const fav = (key) => update((st) => ({ favs: { ...st.favs, [key]: !st.favs[key] } }));
   const toggleMission = (id, val) => update((st) => ({ missions: { ...st.missions, [id]: val ?? !st.missions[id] } }));
-  const ctx = { state, update, s, go, fav, toggleMission, openMission: setSheet };
+  const ctx = { state, update, s, go, fav, toggleMission, openMission: setSheet, user, profile, premium, cloud };
 
   return (
     <div className="bg">
@@ -99,7 +116,7 @@ function MapTabs({ children }) {
 }
 
 /* ---------- Início ---------- */
-function HomeView({ state, s, go, toggleMission, openMission }) {
+function HomeView({ state, s, go, toggleMission, openMission, user, premium }) {
   const next = MISSIONS.find((m) => !state.missions[m.id]);
   const unseen = NEWS.length - state.newsSeen;
   const tiles = [
@@ -112,7 +129,7 @@ function HomeView({ state, s, go, toggleMission, openMission }) {
     <>
       <div className="homebar">
         <button className="round avatar" onClick={() => go("psn")} aria-label="Conta PSN">
-          <User size={20} />{state.psn && <span className="online" />}
+          <User size={20} />{user && <span className="online" />}{premium && <span className="crown"><Crown size={11} /></span>}
         </button>
         <button className="round" onClick={() => go("novidades")} aria-label="Sobre"><Info size={20} /></button>
       </div>
@@ -241,14 +258,32 @@ function Missions({ state, update, toggleMission, openMission }) {
 }
 
 /* ---------- Guias ---------- */
-function Guides({ go }) {
+function Guides({ go, premium, user }) {
   const icons = { Dinheiro: "💵", "Polícia e roubos": "🚔", Progresso: "📈", Personagens: "🔁" };
+  const [tips, setTips] = useState(null);
+  useEffect(() => {
+    if (!premium) return;
+    supabase.from("premium_tips").select("category, body").order("sort").then(({ data }) => setTips(data || []));
+  }, [premium]);
+  const grouped = (tips || []).reduce((a, t) => ((a[t.category] ||= []).push(t.body), a), {});
   return (
     <>
       <div className="tiles">
         <button className="tile peach" onClick={() => go("trofeus")}><Trophy size={26} /><span>Troféus</span></button>
         <button className="tile lav" onClick={() => go("cem")}><Target size={26} /><span>Checklist 100%</span></button>
       </div>
+
+      <h3 className="section"><Sparkles size={20} /> Dicas exclusivas</h3>
+      {premium ? (
+        tips === null ? <p className="pad">Carregando…</p> :
+        Object.entries(grouped).map(([cat, list]) => (
+          <div key={cat} className="glass premium-card">
+            <h4><Crown size={16} /> {cat}</h4>
+            <ul className="tips">{list.map((x, i) => <li key={i}>{x}</li>)}</ul>
+          </div>
+        ))
+      ) : <Paywall go={go} user={user} what="Perdíveis, rota de 100%, cheats escondidos e troféus fáceis." />}
+
       <h3 className="section"><Lightbulb size={20} /> Dicas essenciais</h3>
       {TIPS.map((t) => (
         <div key={t.cat} className="glass">
@@ -264,14 +299,57 @@ function Guides({ go }) {
   );
 }
 
+function Paywall({ go, user, what }) {
+  return (
+    <div className="paywall">
+      <div className="pw-icon"><Lock size={22} /></div>
+      <b>Acesso premium</b>
+      <p>{what}</p>
+      <ul>
+        <li><Check size={14} /> Dicas exclusivas</li>
+        <li><Check size={14} /> Vínculo com a PSN</li>
+        <li><Check size={14} /> Novidades do jogo</li>
+      </ul>
+      <button className="cta full" disabled={!!user} onClick={() => go("psn")}>
+        <Crown size={17} /> {user ? "Desbloquear por R$ 5 · pagamento único" : "Entrar para desbloquear"}
+      </button>
+      {user && <small>Pagamento em breve. Avisaremos quando estiver disponível.</small>}
+    </div>
+  );
+}
+
+
 /* ---------- Troféus ---------- */
-function Trophies({ state, update, fav }) {
+function Trophies({ state, update, fav, premium, go }) {
   const [f, setF] = useState("todos");
   const [showHidden, setShowHidden] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState(null);
+  const psn = state.psn?.trophies ? state.psn : null;
   const list = TROPHIES.filter((t) => f === "todos" || (f === "faltam" ? !state.trophies[t.id] : t.grade === f));
   const toggle = (id) => update((st) => ({ trophies: { ...st.trophies, [id]: !st.trophies[id] } }));
+  const fmt = (d) => new Date(d).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+
+  async function resync() {
+    setBusy(true); setMsg(null);
+    const r = await syncPsn({});
+    if (r.ok) update((st) => applyPsn(st, r.data));
+    setMsg(r.ok ? "Troféus atualizados." : r.error);
+    setBusy(false);
+  }
+
   return (
     <>
+      <div className="glass psnbar">
+        <span className="psnlogo">PSN</span>
+        <div className="grow">
+          {psn ? (<><b>{state.psn.onlineId || "Conta PSN"} · {state.psn.progress ?? 0}%</b><small>Sincronizado em {new Date(state.psn.syncedAt).toLocaleString("pt-BR")}</small></>)
+            : (<><b>Troféus manuais</b><small>{premium ? "Conecte a PSN na aba Conta para marcar sozinho." : "Vincule a PSN (premium) para marcar sozinho."}</small></>)}
+        </div>
+        {psn ? <button className="round small" onClick={resync} aria-label="Sincronizar"><RefreshCw size={16} className={busy ? "spin" : ""} /></button>
+          : <button className="pill sm" onClick={() => go("psn")}>Conectar</button>}
+      </div>
+      {msg && <p className="pad">{msg}</p>}
       <div className="segs">
         {["todos", "faltam", "platina", "ouro", "prata", "bronze"].map((x) => (
           <button key={x} className={f === x ? "on" : ""} onClick={() => setF(x)}>{x}</button>
@@ -285,12 +363,20 @@ function Trophies({ state, update, fav }) {
         {list.map((t) => {
           const hide = t.hidden && !showHidden && !state.trophies[t.id];
           const done = !!state.trophies[t.id];
+          const p = psn?.trophies?.[t.id];
           return (
             <li key={t.id} className={"glass trophy" + (done ? " done" : "")}>
               <button className={"medal " + t.grade} onClick={() => toggle(t.id)} aria-label="Marcar">{done && <Check size={16} />}</button>
               <div className="grow" onClick={() => toggle(t.id)}>
                 <b>{hide ? "Troféu oculto" : t.name}</b>
                 <small>{hide ? "Ative “Mostrar ocultos” para ver." : t.desc}</small>
+                {p && (
+                  <span className="psnmeta">
+                    <span className="psntag">PSN</span>
+                    {p.earned && p.earnedAt ? `Conquistado em ${fmt(p.earnedAt)}` : "Ainda não conquistado"}
+                    {p.rate != null && ` · ${p.rate}% dos jogadores`}
+                  </span>
+                )}
               </div>
               {!hide && <FavBtn on={state.favs["t:" + t.id]} onClick={() => fav("t:" + t.id)} />}
             </li>
@@ -303,6 +389,19 @@ function Trophies({ state, update, fav }) {
 const FavBtn = ({ on, onClick }) => (
   <button className={"favbtn" + (on ? " on" : "")} onClick={onClick} aria-label="Favoritar"><Heart size={18} fill={on ? "currentColor" : "none"} /></button>
 );
+
+// Chama a função segura no servidor (Supabase Edge Function)
+async function syncPsn(body) {
+  const { data, error } = await supabase.functions.invoke("psn-sync", { body });
+  if (error) {
+    let m = "Falha ao sincronizar.";
+    try { m = (await error.context.json()).error || m; } catch {}
+    return { ok: false, error: m };
+  }
+  if (!data.found) return { ok: false, error: `Conectado${data.onlineId ? " como " + data.onlineId : ""}, mas o GTA VI ainda não aparece nos seus troféus.` };
+  return { ok: true, data };
+}
+
 
 /* ---------- 100% ---------- */
 function Completion({ state, update, s }) {
@@ -345,11 +444,69 @@ function Completion({ state, update, s }) {
 }
 
 /* ---------- Rádio ---------- */
+const toEmbed = (url) => {
+  const m = String(url).match(/open\.spotify\.com\/(?:intl-[a-z]+\/)?(album|playlist|track|artist|episode|show)\/([A-Za-z0-9]+)/);
+  return m ? `https://open.spotify.com/embed/${m[1]}/${m[2]}?utm_source=generator&theme=0` : null;
+};
+const spotifySearch = (q) => `https://open.spotify.com/search/${encodeURIComponent(q)}`;
+
+function SpotifyPlayer({ state, update }) {
+  const [link, setLink] = useState("");
+  const saved = state.spotify || [];
+  const current = state.spotifyNow || saved[0]?.url || null;
+  const embed = current ? toEmbed(current) : null;
+  function add() {
+    if (!toEmbed(link)) return alert("Cole um link do Spotify (álbum, playlist ou música).");
+    update((st) => ({ spotify: [{ url: link.trim(), added: Date.now() }, ...(st.spotify || [])].slice(0, 30), spotifyNow: link.trim() }));
+    setLink("");
+  }
+  return (
+    <div className="glass spotify">
+      <h4><Music size={17} /> Player Spotify</h4>
+      {embed ? (
+        <iframe src={embed} width="100%" height="352" loading="lazy" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" title="Spotify" />
+      ) : (
+        <p className="muted">Cole o link do álbum oficial, de uma playlist ou de uma música no Spotify para tocar aqui.</p>
+      )}
+      <div className="row">
+        <input className="field" placeholder="https://open.spotify.com/…" value={link} onChange={(e) => setLink(e.target.value)} />
+        <button className="pill sm solid" onClick={add}>Tocar</button>
+      </div>
+      {saved.length > 0 && (
+        <div className="mylib">
+          <small className="genre">Minha biblioteca no app</small>
+          {saved.map((x, i) => (
+            <div key={i} className="row between libitem">
+              <button className={"grow left" + (x.url === current ? " playing" : "")} onClick={() => update(() => ({ spotifyNow: x.url }))}>
+                <Disc3 size={15} /> {x.url.replace(/^https:\/\/open\.spotify\.com\/(intl-[a-z]+\/)?/, "").split("?")[0]}
+              </button>
+              <button className="favbtn" onClick={() => update((st) => ({ spotify: st.spotify.filter((_, j) => j !== i) }))} aria-label="Remover"><X size={15} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+      <button className="cta ghost full" disabled title="Requer conectar sua conta Spotify (em breve)">
+        <Lock size={15} /> Salvar na minha biblioteca do Spotify · em breve
+      </button>
+    </div>
+  );
+}
+
 function Radios({ state, update, fav }) {
   const toggle = (id) => update((st) => ({ radios: { ...st.radios, [id]: !st.radios[id] } }));
   return (
     <>
-      <p className="muted pad">Toque no rádio para marcar como ouvida. Há ainda 2 playlists únicas que contam para os 100% (uma delas é a do Kodak Black, The Sniper of La Perle).</p>
+      <SpotifyPlayer state={state} update={update} />
+      <div className="glass album">
+        <h4><Disc3 size={17} /> Trilha oficial</h4>
+        <p className="muted"><b>Grand Theft Auto VI: The Album</b> — 34 faixas originais; a edição Deluxe soma 57. <b>Trilha original do Justice</b> — 30 faixas, chega em 11 de dezembro.</p>
+        <div className="songs-list">
+          {ALBUM_SINGLES.map((x) => (
+            <a key={x.t} href={spotifySearch(`${x.t} ${x.a}`)} target="_blank" rel="noreferrer">♪ {x.t} <span>· {x.a}</span> <ExternalLink size={12} /></a>
+          ))}
+        </div>
+      </div>
+      <p className="muted pad">Toque no disco para marcar a rádio como ouvida. Há ainda 2 playlists únicas que contam para os 100% (uma delas é a do Kodak Black, The Sniper of La Perle).</p>
       <ul className="cards">
         {RADIOS.map((r, i) => (
           <li key={r.id} className={"glass radio" + (state.radios[r.id] ? " on" : "")} style={{ "--h": (280 + i * 23) % 360 }}>
@@ -358,8 +515,15 @@ function Radios({ state, update, fav }) {
               <b>{r.name}</b>
               <small className="genre">{r.genre}{r.tracks ? ` · ${r.tracks} faixas` : ""}</small>
               <small>{r.hosts}</small>
-              {r.songs && <small className="songs">♪ {r.songs.join(" · ")}</small>}
+              {r.songs && r.songs.map((x) => (
+                <a key={x} className="songlink" href={spotifySearch(x.replace(" – ", " "))} target="_blank" rel="noreferrer">♪ {x} <ExternalLink size={11} /></a>
+              ))}
               {r.secret && <small className="secret">{r.secret}</small>}
+              {!r.talk && (
+                <a className="songlink sp" href={spotifySearch(`${r.genre} ${r.hosts.split(",")[0]}`)} target="_blank" rel="noreferrer">
+                  <Music size={12} /> Ouvir algo parecido no Spotify
+                </a>
+              )}
             </div>
             <FavBtn on={state.favs["r:" + r.id]} onClick={() => fav("r:" + r.id)} />
           </li>
@@ -368,21 +532,43 @@ function Radios({ state, update, fav }) {
     </>
   );
 }
+const ALBUM_SINGLES = [
+  { t: "That's It", a: "Yung Lean feat. Future e Metro Boomin" },
+  { t: "RHYNO", a: "Travis Scott" },
+];
 
 /* ---------- Personagens ---------- */
+const CHAR_STYLE = {
+  "Lucia Caminos": [Crown, 330, "Protagonista"], "Jason Duval": [Crown, 210, "Protagonista"],
+  "Cal Hampton": [Fish, 180], "Brian Heder": [Anchor, 30], "Lori Heder": [Heart, 350],
+  "Boobie Ike": [Building2, 280], "Dre'Quan Priest": [Mic, 260], "Real Dimez": [Disc3, 300],
+  "Raul Bautista": [Landmark, 10], "Kenton Rees": [Waves, 195], "Bret": [Crosshair, 100],
+  "Tyrone": [Wrench, 40], "Randy": [Package, 60], "Andy": [ShieldCheck, 150], "Billy": [Gem, 240],
+};
 function Characters({ state, fav }) {
   return (
     <ul className="cards">
-      {CHARACTERS.map((c, i) => (
-        <li key={c.name} className="glass char">
-          <span className="ava" style={{ "--h": (300 + i * 29) % 360 }}>{c.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}</span>
-          <div className="grow"><b>{c.name}</b><small className="genre">{c.role}</small><small>{c.text}</small></div>
-          <FavBtn on={state.favs["c:" + c.name]} onClick={() => fav("c:" + c.name)} />
-        </li>
-      ))}
+      {CHARACTERS.map((c) => {
+        const [Icon, h, badge] = CHAR_STYLE[c.name] || [Users, 270];
+        return (
+          <li key={c.name} className={"glass char" + (badge ? " lead" : "")}>
+            <span className="ava2" style={{ "--h": h }}>
+              <Icon size={24} strokeWidth={2.2} />
+              <i>{c.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}</i>
+            </span>
+            <div className="grow">
+              <b>{c.name} {badge && <span className="leadtag">{badge}</span>}</b>
+              <small className="genre">{c.role}</small>
+              <small>{c.text}</small>
+            </div>
+            <FavBtn on={state.favs["c:" + c.name]} onClick={() => fav("c:" + c.name)} />
+          </li>
+        );
+      })}
     </ul>
   );
 }
+
 
 /* ---------- Favoritos ---------- */
 function Favorites({ state, openMission, go }) {
@@ -443,71 +629,129 @@ function SearchView({ state, openMission, go }) {
 }
 
 /* ---------- Novidades ---------- */
-function News({ state, update }) {
+function News({ update, premium, go, user }) {
+  const [items, setItems] = useState(null);
   useEffect(() => { update(() => ({ newsSeen: NEWS.length })); }, [update]);
+  useEffect(() => {
+    if (!premium) return;
+    supabase.from("news").select("title, body, published_at").order("published_at", { ascending: false }).then(({ data }) => setItems(data || []));
+  }, [premium]);
   return (
-    <ul className="cards">
-      {NEWS.map((x, i) => (
-        <li key={i} className="glass news">
-          <span className="date">{x.date}</span>
-          <div className="grow"><b>{x.title}</b><small>{x.text}</small></div>
-        </li>
-      ))}
-    </ul>
+    <>
+      <h3 className="section"><Sparkles size={20} /> Notícias do jogo</h3>
+      {premium ? (
+        <ul className="cards">
+          {(items || []).map((x, i) => (
+            <li key={i} className="glass news">
+              <span className="date">{new Date(x.published_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" })}</span>
+              <div className="grow"><b>{x.title}</b><small>{x.body}</small></div>
+            </li>
+          ))}
+        </ul>
+      ) : <Paywall go={go} user={user} what="Notícias de atualizações, trilha sonora e lançamentos de GTA VI." />}
+      <h3 className="section"><Megaphone size={20} /> Novidades do app</h3>
+      <ul className="cards">
+        {NEWS.map((x, i) => (
+          <li key={i} className="glass news">
+            <span className="date">{x.date}</span>
+            <div className="grow"><b>{x.title}</b><small>{x.text}</small></div>
+          </li>
+        ))}
+      </ul>
+    </>
   );
 }
 
-/* ---------- PSN ---------- */
-function Psn({ state, update }) {
+/* ---------- Conta (login, premium e PSN) ---------- */
+function Psn({ state, update, user, profile, premium, cloud }) {
+  const [email, setEmail] = useState("");
+  const [sent, setSent] = useState(false);
   const [npsso, setNpsso] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState(null);
 
-  async function sync() {
+  async function login() {
     setBusy(true); setMsg(null);
-    try {
-      const r = await fetch("/api/psn", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ npsso }) });
-      const data = await r.json();
-      if (!r.ok) throw new Error(data.error || "Erro");
-      if (!data.found) {
-        setMsg({ ok: false, text: `Conectado${data.onlineId ? " como " + data.onlineId : ""}, mas o GTA VI ainda não aparece nos seus troféus. Ganhe o primeiro troféu e sincronize de novo.` });
-        update(() => ({ psn: { onlineId: data.onlineId, syncedAt: new Date().toISOString(), found: false } }));
-      } else {
-        update((st) => applyPsn(st, data));
-        const n = data.trophies.filter((t) => t.earned).length;
-        setMsg({ ok: true, text: `Pronto: ${n} de ${data.trophies.length} troféus (${data.progress}% na PSN). Missões e contadores atualizados.` });
-      }
-      setNpsso("");
-    } catch (e) { setMsg({ ok: false, text: e.message }); } finally { setBusy(false); }
+    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
+    setBusy(false);
+    if (error) setMsg({ ok: false, text: error.message }); else setSent(true);
   }
+  async function connect(body) {
+    setBusy(true); setMsg(null);
+    const r = await syncPsn(body);
+    if (r.ok) {
+      update((st) => applyPsn(st, r.data));
+      const n = r.data.trophies.filter((t) => t.earned).length;
+      setMsg({ ok: true, text: `Pronto: ${n} de ${r.data.trophies.length} troféus (${r.data.progress}% na PSN). A aba Troféus foi atualizada.` });
+      setNpsso("");
+    } else setMsg({ ok: false, text: r.error });
+    setBusy(false);
+  }
+  async function unlink() {
+    await supabase.functions.invoke("psn-sync", { body: { action: "unlink" } });
+    update(() => ({ psn: null }));
+  }
+
+  if (!user) return (
+    <div className="glass">
+      <h4><Mail size={17} /> Entrar ou criar conta</h4>
+      <p className="muted">Sua conta guarda o progresso na nuvem (troca de celular sem perder nada) e libera o acesso premium e a PSN.</p>
+      {sent ? (
+        <p className="ok-msg">Enviamos um link de acesso para <b>{email}</b>. Abra o e-mail neste aparelho para entrar.</p>
+      ) : (
+        <>
+          <input className="field" type="email" placeholder="seu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+          <button className="cta full" disabled={busy || !/\S+@\S+\.\S+/.test(email)} onClick={login}>{busy ? "Enviando…" : "Receber link de acesso"}</button>
+        </>
+      )}
+      {msg && <p className="err-msg">{msg.text}</p>}
+    </div>
+  );
 
   return (
     <>
-      {state.psn && (
-        <div className="nextcard compact">
-          <p className="tag">Conectado</p>
-          <h2>{state.psn.onlineId || "Conta PSN"}</h2>
-          <p className="meta">Última sincronização: {new Date(state.psn.syncedAt).toLocaleString("pt-BR")}</p>
-          <button className="pill" onClick={() => update(() => ({ psn: null }))}><X size={16} /> Desconectar</button>
-        </div>
-      )}
-      <div className="glass">
-        <h4>{state.psn ? "Sincronizar de novo" : "Conectar com a PSN"}</h4>
-        <p className="muted">Lê seus troféus de GTA VI e marca sozinho troféus, missões (pelos troféus de capítulo) e parte do 100%.</p>
-        <ol className="steps">
-          <li>Entre em <a href="https://www.playstation.com" target="_blank" rel="noreferrer">playstation.com</a>.</li>
-          <li>Na mesma aba, abra <a href="https://ca.account.sony.com/api/v1/ssocookie" target="_blank" rel="noreferrer">ca.account.sony.com/api/v1/ssocookie</a>.</li>
-          <li>Copie só o valor de <code>npsso</code> e cole aqui.</li>
-        </ol>
-        <input className="field" type="password" placeholder="Cole seu NPSSO" value={npsso} onChange={(e) => setNpsso(e.target.value)} autoComplete="off" />
-        <button className="cta full" disabled={busy || npsso.length < 40} onClick={sync}><RefreshCw size={18} className={busy ? "spin" : ""} /> {busy ? "Sincronizando…" : "Sincronizar troféus"}</button>
-        {msg && <p className={msg.ok ? "ok-msg" : "err-msg"}>{msg.text}</p>}
-        <p className="fine">O NPSSO funciona como uma senha: não compartilhe. Ele é usado só nesta sincronização e não fica salvo no site nem no servidor. A integração usa a API não oficial da PSN e pode parar se a Sony mudar algo.</p>
+      <div className="nextcard compact">
+        <p className="tag">{premium ? <><Crown size={15} /> Premium</> : "Conta gratuita"}</p>
+        <h2 className="mail">{user.email}</h2>
+        <p className="meta"><Cloud size={14} /> Progresso na nuvem: {cloud === "saving" ? "salvando…" : cloud === "error" ? "erro ao salvar" : "sincronizado"}</p>
+        <button className="pill" onClick={() => supabase.auth.signOut()}><LogOut size={16} /> Sair</button>
       </div>
+
+      {!premium && <Paywall go={() => {}} user={user} what="Desbloqueie tudo com um pagamento único de R$ 5." />}
+
+      <div className={"glass" + (premium ? "" : " locked")}>
+        <h4><span className="psnlogo sm">PSN</span> Vínculo com a PlayStation Network</h4>
+        {state.psn?.trophies && (
+          <p className="ok-msg">Vinculado como <b>{state.psn.onlineId || "—"}</b> · última sincronização {new Date(state.psn.syncedAt).toLocaleString("pt-BR")}</p>
+        )}
+        <p className="muted">Lê seus troféus de GTA VI e marca sozinho troféus (com data e raridade), missões e parte do 100%. Depois do primeiro vínculo, basta tocar em sincronizar.</p>
+        {premium ? (
+          <>
+            {state.psn?.trophies && (
+              <div className="row">
+                <button className="cta" disabled={busy} onClick={() => connect({})}><RefreshCw size={17} className={busy ? "spin" : ""} /> Sincronizar agora</button>
+                <button className="cta ghost" onClick={unlink}>Desvincular</button>
+              </div>
+            )}
+            <ol className="steps">
+              <li>Entre em <a href="https://www.playstation.com" target="_blank" rel="noreferrer">playstation.com</a>.</li>
+              <li>Na mesma aba, abra <a href="https://ca.account.sony.com/api/v1/ssocookie" target="_blank" rel="noreferrer">ca.account.sony.com/api/v1/ssocookie</a>.</li>
+              <li>Copie só o valor de <code>npsso</code> e cole aqui.</li>
+            </ol>
+            <input className="field" type="password" placeholder="Cole seu NPSSO" value={npsso} onChange={(e) => setNpsso(e.target.value)} autoComplete="off" />
+            <button className="cta full" disabled={busy || npsso.length < 40} onClick={() => connect({ npsso })}>
+              <RefreshCw size={18} className={busy ? "spin" : ""} /> {busy ? "Conectando…" : state.psn?.trophies ? "Reconectar com novo NPSSO" : "Vincular PSN"}
+            </button>
+          </>
+        ) : <p className="lockline"><Lock size={15} /> Disponível no acesso premium.</p>}
+        {msg && <p className={msg.ok ? "ok-msg" : "err-msg"}>{msg.text}</p>}
+        <p className="fine">O NPSSO não é salvo. O servidor guarda só um token de renovação da PSN, que fica inacessível pelo navegador e é apagado quando você desvincula. A integração usa a API não oficial da PSN e pode parar se a Sony mudar algo.</p>
+      </div>
+
       <div className="glass">
         <h4>Zerar progresso</h4>
-        <p className="muted">Apaga tudo o que está salvo neste aparelho.</p>
-        <button className="cta ghost" onClick={() => { if (confirm("Apagar todo o progresso?")) update(() => ({ missions: {}, trophies: {}, counters: {}, radios: {}, pins: [], favs: {}, psn: null })); }}>Zerar</button>
+        <p className="muted">Apaga o progresso deste aparelho e da nuvem.</p>
+        <button className="cta ghost" onClick={() => { if (confirm("Apagar todo o progresso?")) update(() => ({ missions: {}, trophies: {}, counters: {}, radios: {}, pins: [], visited: {}, favs: {}, psn: null })); }}>Zerar</button>
       </div>
     </>
   );

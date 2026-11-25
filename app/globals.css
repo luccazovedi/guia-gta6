@@ -298,3 +298,47 @@ main.loading { opacity: .4; }
 .ign { display: grid; gap: 10px; }
 .ign iframe { width: 100%; height: 72vh; border: 1px solid var(--edge); border-radius: 26px; background: #fff; box-shadow: 0 14px 44px rgba(80, 30, 120, .25); }
 .ign-note { margin: 0; }
+
+/* conta, premium, PSN, Spotify */
+.crown { position: absolute; left: -2px; top: -2px; width: 18px; height: 18px; border-radius: 50%; display: grid; place-items: center; background: #f59e0b; color: #fff; border: 2px solid #fff; }
+.paywall { text-align: center; padding: 22px 20px; margin-bottom: 12px; border-radius: 26px; color: #3b0f63;
+  background: linear-gradient(135deg, rgba(255,255,255,.75), rgba(253,230,245,.85)); border: 1px solid var(--edge); box-shadow: 0 10px 30px rgba(150,50,160,.18); }
+.paywall b { display: block; font-size: 1.2rem; font-weight: 800; margin: 8px 0 4px; }
+.paywall p { color: var(--ink2); line-height: 1.45; }
+.paywall ul { list-style: none; padding: 0; margin: 12px auto 4px; display: inline-grid; gap: 6px; text-align: left; font-weight: 600; color: var(--ink2); }
+.paywall li { display: flex; gap: 8px; align-items: center; }
+.paywall li svg { color: #be185d; }
+.paywall small { color: var(--mut); margin-top: 8px; font-size: .78rem; }
+.pw-icon { width: 52px; height: 52px; border-radius: 50%; margin: 0 auto; display: grid; place-items: center; color: #fff; background: linear-gradient(135deg, #8b5cf6, #ec4899); }
+.premium-card h4 { display: flex; align-items: center; gap: 6px; color: #9a3412; }
+.locked { opacity: .9; }
+.lockline { display: flex; align-items: center; gap: 6px; color: var(--mut); font-weight: 600; margin-top: 8px; }
+.nextcard .mail { font-size: 1.15rem; word-break: break-all; }
+.nextcard .meta { display: flex; align-items: center; gap: 6px; }
+.psnbar { display: flex; align-items: center; gap: 12px; }
+.psnbar b { display: block; }
+.psnbar small { color: var(--mut); font-size: .8rem; }
+.psnlogo { font: 800 .72rem var(--f-mono); color: #fff; background: #0070d1; padding: 8px 9px; border-radius: 12px; letter-spacing: .04em; }
+.psnlogo.sm { padding: 3px 6px; border-radius: 7px; font-size: .65rem; vertical-align: 2px; }
+.pill.sm { padding: 7px 14px; font-size: .85rem; background: #fff; }
+.pill.solid { background: linear-gradient(90deg, #8b5cf6, #ec4899); color: #fff; border-color: transparent; white-space: nowrap; }
+.psnmeta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; font: 600 .72rem var(--f-mono); color: #1d4ed8; }
+.psntag { background: #0070d1; color: #fff; border-radius: 5px; padding: 1px 5px; font-size: .62rem; }
+.spotify iframe { border: 0; border-radius: 16px; margin: 6px 0 10px; display: block; }
+.spotify h4, .album h4 { display: flex; align-items: center; gap: 8px; }
+.spotify .field { flex: 1; }
+.mylib { margin: 12px 0 4px; display: grid; gap: 2px; }
+.libitem button.left { display: flex; align-items: center; gap: 8px; text-align: left; padding: 7px 4px; font-size: .85rem; color: var(--ink2); overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.libitem button.playing { color: #15803d; font-weight: 700; }
+.songs-list { display: grid; gap: 4px; margin-top: 8px; }
+.songs-list a { display: block; font-size: .85rem; color: var(--grape); text-decoration: none; margin-top: 4px; }
+.songlink { display: inline-flex; align-items: center; gap: 5px; font-size: .85rem; color: var(--grape); text-decoration: none; margin-top: 4px; }
+.songs-list a span { color: var(--mut); font-weight: 500; }
+.songlink.sp { color: #15803d; }
+.cards small + .songlink { display: flex; }
+.ava2 { position: relative; width: 52px; height: 52px; border-radius: 18px; flex-shrink: 0; display: grid; place-items: center; color: #fff;
+  background: radial-gradient(circle at 30% 25%, hsl(var(--h) 90% 78%), transparent 60%), linear-gradient(135deg, hsl(var(--h) 75% 58%), hsl(calc(var(--h) + 45) 80% 55%));
+  box-shadow: 0 6px 16px hsl(var(--h) 60% 40% / .35), inset 0 1px 0 #ffffff66; }
+.ava2 i { position: absolute; right: -6px; bottom: -6px; font: 800 .6rem var(--f-mono); font-style: normal; background: #fff; color: hsl(var(--h) 60% 40%); border-radius: 8px; padding: 2px 5px; box-shadow: 0 2px 6px #0002; }
+.char.lead { background: rgba(255,255,255,.82); }
+.leadtag { font: 700 .62rem var(--f-mono); text-transform: uppercase; color: #fff; background: linear-gradient(90deg, #8b5cf6, #ec4899); padding: 2px 6px; border-radius: 6px; vertical-align: 2px; margin-left: 4px; }
