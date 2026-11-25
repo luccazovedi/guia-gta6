@@ -7,14 +7,14 @@ import {
   Search, X, Check, Heart, Eye, EyeOff, Camera, Pencil, Trash2, StickyNote, MapPin, ChevronLeft, ChevronDown,
   ChevronRight, Layers, Navigation, Plus, Minus, Locate,
   Bird, Spade, BookOpen, Watch, Flower2, Waves, ScanLine, Flag, Target, Drone, CircleDot, Circle, FlagTriangleRight,
-  Zap, Landmark, Vault, ShoppingBag, Gem, Skull, Star, House, Store, Activity, Trophy, Radio,
+  Zap, Landmark, Vault, ShoppingBag, Gem, Skull, Star, House, Store, Activity, Trophy, Radio, HandCoins, Banknote, Wrench, Swords,
 } from "lucide-react";
 import { GROUPS, CAT, REGIONS_MAP, DISTRICTS, MARKERS, POINTS, TOWNS } from "../lib/mapdata";
 
 // CRS com y para baixo (coordenadas 0–1000 do mapa)
 const CRS = L.extend({}, L.CRS.Simple, { transformation: new L.Transformation(1, 0, 1, 0) });
 
-const ICONS = { Bird, Spade, BookOpen, Watch, Flower2, Waves, ScanLine, Flag, Target, Drone, CircleDot, Circle, FlagTriangleRight, Zap, Landmark, Vault, ShoppingBag, Gem, Skull, Star, House, Store, Activity, Trophy, Radio };
+const ICONS = { Bird, Spade, BookOpen, Watch, Flower2, Waves, ScanLine, Flag, Target, Drone, CircleDot, Circle, FlagTriangleRight, Zap, Landmark, Vault, ShoppingBag, Gem, Skull, Star, House, Store, Activity, Trophy, Radio, HandCoins, Banknote, Wrench, Swords };
 const CatIcon = ({ k, size = 16 }) => { const I = ICONS[CAT[k]?.icon] || MapPin; return <I size={size} />; };
 const svgCache = {};
 const iconSvg = (k) => (svgCache[k] ||= renderToStaticMarkup(<CatIcon k={k} size={15} />));

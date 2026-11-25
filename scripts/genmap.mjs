@@ -74,6 +74,7 @@ for (let i = 0; i < 16; i++) {
 const barrier = [
   fractal([[952, 548], [964, 560], [968, 650], [962, 726], [950, 732], [946, 650]], 3, 2),
   blob(914, 612, 13, 5), blob(908, 690, 14, 6), blob(930, 640, 7, 4), blob(896, 728, 9, 4),
+  blob(112, 470, 16, 10), blob(962, 516, 8, 14), blob(948, 790, 12, 6), blob(262, 958, 14, 6), blob(452, 934, 10, 5),
 ];
 const lake = blob(628, 422, 70, 55, 18, 0.18);
 const smallLakes = [blob(380, 520, 14, 9), blob(700, 300, 10, 7), blob(300, 250, 9, 6), blob(520, 600, 12, 8), blob(760, 420, 8, 6)];
@@ -190,7 +191,7 @@ ${keys.concat(barrier).map((k) => `<path d="${poly(k)}" fill="#3a3d30" stroke="#
   ${canyon.map((c, i) => `<path d="${poly(c)}" fill="${i ? "#6b4a35" : "#5a3f2e"}" opacity=".85"/>`).join("")}
   ${golf.map((g) => `<path d="${poly(g)}" fill="#3f6a34"/>`).join("")}
   ${rivers.map((r) => `<path d="${smooth(r)}" stroke="#244766" stroke-width="2.4" fill="none" stroke-linecap="round"/>`).join("")}
-  <g fill="#3b3c46">${M.TOWNS.filter((t) => !["Bayside","Crosstown","Peacock Bay","Tequesta Retreat","Leaf Links","Gloriana Key"].includes(t.name)).map((t) => cityBlocks(t.x, t.y, 22, 16, 4, r(-15, 15))).join("")}</g>
+  <g fill="#3b3c46">${M.TOWNS.filter((t) => !["Bayside","Crosstown","Peacock Bay","Tequesta Retreat","Leaf Links","Gloriana Key","Dalton Island","Corsair Key","Draper Island","Permit Keys","Ambismo Key","Little Hardin Island","Casanova Island","Vespucci Island","Wild Hog Point","Kalaga Lookout","Cottonmouth Lake"].includes(t.name)).map((t) => cityBlocks(t.x, t.y, 22, 16, 4, r(-15, 15))).join("")}</g>
   <!-- aeroporto (VCIA) -->
   <g transform="rotate(-18 800 636)"><rect x="770" y="628" width="60" height="16" rx="2" fill="#2a2b31"/><rect x="772" y="632" width="56" height="2.4" fill="#9a9ca6"/><rect x="772" y="639" width="56" height="2.4" fill="#9a9ca6"/></g>
   <!-- porto -->
