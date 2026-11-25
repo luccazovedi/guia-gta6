@@ -6,12 +6,13 @@ import {
   Heart, Radio, Search, Trophy, Target, ChevronRight, ChevronLeft, X, Lightbulb, RefreshCw,
   Lock, Crown, LogOut, Mail, Music, Sparkles, ExternalLink, Fish, Building2, Mic, Landmark, Anchor, Crosshair,
   Package, Gem, Disc3, Cloud, ShieldCheck, Waves, Wrench, Gamepad2, Link2, StickyNote, MapPin, CircleCheck,
-  Layers, Newspaper, Moon, Sun, Plus, Trash2, Flag as FlagIcon, PieChart, Camera,
+  Layers, Newspaper, Moon, Sun, Plus, Trash2, Flag as FlagIcon, PieChart, Camera, BookOpen, ChevronDown, MessagesSquare,
 } from "lucide-react";
 import { CHAPTERS, MISSIONS, TROPHIES, COMPLETION, RADIOS, CHARACTERS, TIPS, NEWS, REGIONS } from "../lib/data";
 import { useProgress, stats, applyPsn, useCloudSync } from "../lib/store";
 import { supabase } from "../lib/supabase";
-import { StationCover, TrophyIcon } from "../components/Art";
+import { StationCover, TrophyIcon, Portrait } from "../components/Art";
+import { GLOSSARY, GLOSSARY_CATS } from "../lib/glossary";
 import { MARKERS } from "../lib/mapdata";
 
 const LeonidaMap = dynamic(() => import("../components/LeonidaMap"), { ssr: false });
@@ -541,11 +542,8 @@ function Characters({ state, fav }) {
       {CHARACTERS.map((c) => {
         const [Icon, h, badge] = CHAR_STYLE[c.name] || [Users, 270];
         return (
-          <li key={c.name} className={"glass char" + (badge ? " lead" : "")}>
-            <span className="ava2" style={{ "--h": h }}>
-              <Icon size={24} strokeWidth={2.2} />
-              <i>{c.name.split(" ").map((w) => w[0]).slice(0, 2).join("")}</i>
-            </span>
+          <li key={c.name} className={"glass char" + (badge ? " protag" : "")}>
+            <Portrait name={c.name} hue={h} size={64} />
             <div className="grow">
               <b>{c.name} {badge && <span className="leadtag">{badge}</span>}</b>
               <small className="genre">{c.role}</small>
@@ -591,12 +589,15 @@ function ResultList({ items }) {
 /* ---------- Busca ---------- */
 function SearchView({ state, openMission, go }) {
   const [q, setQ] = useState("");
+  const [open, setOpen] = useState(null);
+  const [cat, setCat] = useState(null);
   const n = (x) => x.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
   const items = useMemo(() => {
     if (q.trim().length < 2) return [];
     const t = n(q);
     const hit = (...f) => f.some((x) => x && n(x).includes(t));
     return [
+      ...GLOSSARY.filter((x) => hit(x.term, x.text, x.tags)).map((x) => ({ k: "g" + x.term, kind: "Explicação", name: x.term, sub: x.text, act: () => setOpen(x.term) })),
       ...MISSIONS.filter((m) => hit(m.name, m.note)).map((m) => ({ k: "m" + m.id, kind: "Missão", name: m.name, sub: `Capítulo ${m.chapter} · Missão ${m.id}`, act: () => openMission(m) })),
       ...TROPHIES.filter((x) => hit(x.name, x.desc)).map((x) => ({ k: x.id, kind: "Troféu", name: x.name, sub: x.desc, act: () => go("trofeus") })),
       ...RADIOS.filter((x) => hit(x.name, x.genre, x.hosts, ...(x.songs || []))).map((x) => ({ k: x.id, kind: "Rádio", name: x.name, sub: `${x.genre} · ${x.hosts}`, act: () => go("radio") })),
@@ -607,34 +608,55 @@ function SearchView({ state, openMission, go }) {
   }, [q]);
   return (
     <>
-      <div className="searchbox glass"><Search size={18} /><input autoFocus placeholder="Missões, troféus, rádios, personagens…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
+      <div className="searchbox glass"><Search size={18} /><input autoFocus placeholder="Missões, ícones, ações, configurações…" value={q} onChange={(e) => setQ(e.target.value)} /></div>
       {q.trim().length >= 2 && !items.length && <p className="muted pad">Nada encontrado para “{q}”.</p>}
       <ResultList items={items} />
       {!q && (
-        <div className="suggest">
-          {["Kenton", "Flash FM", "cofre", "Vice City", "Lucia", "meditação"].map((x) => <button key={x} onClick={() => setQ(x)}>{x}</button>)}
-        </div>
+        <>
+          <div className="suggest">
+            {["procurado", "receptador", "Kenton", "Flash FM", "cofre", "mira"].map((x) => <button key={x} onClick={() => setQ(x)}>{x}</button>)}
+          </div>
+          <h3 className="section"><BookOpen size={20} /> Entenda o jogo</h3>
+          <div className="gcats">
+            {GLOSSARY_CATS.map((c) => (
+              <button key={c.id} className={"gcat" + (cat === c.id ? " on" : "")} onClick={() => setCat(cat === c.id ? null : c.id)}>
+                <b>{c.label}</b><small>{GLOSSARY.filter((x) => x.cat === c.id).length} explicações</small>
+              </button>
+            ))}
+          </div>
+          {cat && (
+            <ul className="gloss">
+              {GLOSSARY.filter((x) => x.cat === cat).map((x) => (
+                <li key={x.term} className={open === x.term ? "open" : ""}>
+                  <button onClick={() => setOpen(open === x.term ? null : x.term)}><b>{x.term}</b><ChevronDown size={16} /></button>
+                  {open === x.term && <p>{x.text}</p>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
+      {q && open && (() => { const x = GLOSSARY.find((g) => g.term === open); return x && <div className="glass gdef"><b>{x.term}</b><p>{x.text}</p></div>; })()}
     </>
   );
 }
 
 /* ---------- Novidades (linha do tempo) ---------- */
-const CAT_ICON = { "Recurso": Sparkles, "Conteúdo": Layers, "Mapa": MapIcon, "Notícia": Newspaper };
+const CAT_ICON = { "Recurso": Sparkles, "Conteúdo": Layers, "Mapa": MapIcon, "Notícia": Newspaper, "Oficial": Megaphone, "Fórum": MessagesSquare, "Imprensa": Newspaper };
 function News({ update, premium, go, openPro, state }) {
   const [newCount] = useState(Math.max(0, NEWS.length - state.newsSeen));
   const [official, setOfficial] = useState([]);
   useEffect(() => { update(() => ({ newsSeen: NEWS.length })); }, [update]);
   useEffect(() => {
     if (!premium) return;
-    supabase.from("news").select("title, body, published_at").order("published_at", { ascending: false })
-      .then(({ data }) => setOfficial((data || []).map((x) => ({ date: x.published_at, cat: "Notícia", title: x.title, text: x.body, official: true }))));
+    supabase.from("news").select("title, body, published_at, url, source, cat").order("published_at", { ascending: false }).limit(60)
+      .then(({ data }) => setOfficial((data || []).map((x) => ({ date: x.published_at, cat: x.cat || "Notícia", title: x.title, text: x.body, url: x.url, source: x.source, official: true }))));
   }, [premium]);
   const items = [...NEWS.map((x, i) => ({ ...x, isNew: i < newCount })), ...official]
     .sort((a, b) => new Date(b.date) - new Date(a.date));
   return (
     <>
-      <p className="lead">Atualizações do guia e notícias de Grand Theft Auto VI, das mais recentes para as mais antigas.</p>
+      <p className="lead">Atualizações do guia e notícias de GTA VI. As notícias são coletadas a cada 3 horas do Newswire da Rockstar, do r/GTA6, do GTAForums e da imprensa.</p>
       {newCount > 0 && <p className="newline"><Megaphone size={18} /> {newCount} {newCount === 1 ? "novidade" : "novidades"} desde sua última visita</p>}
       {!premium && (
         <button className="glass lockcard" onClick={openPro}>
@@ -658,6 +680,7 @@ function News({ update, premium, go, openPro, state }) {
                 <b>{x.title}</b>
                 <p>{x.text}</p>
                 {x.go && <button className="pill solid" onClick={() => go(x.go)}><ArrowRight size={16} /> Abrir</button>}
+                {x.url && <a className="pill" href={x.url} target="_blank" rel="noopener noreferrer"><ExternalLink size={15} /> {x.source || "Fonte"}</a>}
               </div>
             </li>
           );
@@ -718,11 +741,6 @@ function Profile({ state, update, s, go, user, premium, cloud, openPro, theme })
         <button className="pill solid" onClick={() => (premium ? setLinkPsn(true) : openPro())}>
           {premium ? <><Link2 size={15} /> {state.psn?.trophies ? "Gerenciar" : "Vincular"}</> : <><Lock size={14} /> Premium</>}
         </button>
-      </div>
-      <div className="glass acct xb">
-        <span className="acicon xb"><Gamepad2 size={26} /></span>
-        <div className="grow"><b>Xbox</b><small>Conquistas do GTA VI</small></div>
-        <button className="pill" disabled>Em breve</button>
       </div>
       <p className="fine pad2">Vincular é opcional e usa uma API não oficial da PSN, que pode parar se a Sony mudar algo. O NPSSO não é salvo.</p>
 

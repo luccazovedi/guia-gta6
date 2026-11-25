@@ -340,7 +340,7 @@ main.loading { opacity: .4; }
   background: radial-gradient(circle at 30% 25%, hsl(var(--h) 90% 78%), transparent 60%), linear-gradient(135deg, hsl(var(--h) 75% 58%), hsl(calc(var(--h) + 45) 80% 55%));
   box-shadow: 0 6px 16px hsl(var(--h) 60% 40% / .35), inset 0 1px 0 #ffffff66; }
 .ava2 i { position: absolute; right: -6px; bottom: -6px; font: 800 .6rem var(--f-mono); font-style: normal; background: #fff; color: hsl(var(--h) 60% 40%); border-radius: 8px; padding: 2px 5px; box-shadow: 0 2px 6px #0002; }
-.char.lead { background: rgba(255,255,255,.82); }
+.char.protag { background: rgba(255,255,255,.82); }
 .leadtag { font: 700 .62rem var(--f-mono); text-transform: uppercase; color: #fff; background: linear-gradient(90deg, #8b5cf6, #ec4899); padding: 2px 6px; border-radius: 6px; vertical-align: 2px; margin-left: 4px; }
 
 /* troféus com ícone */
@@ -511,7 +511,7 @@ main.loading { opacity: .4; }
 .bg.dark .tracklist li + li, .bg.dark .list li, .bg.dark .counters li, .bg.dark .prow { border-color: rgba(255,255,255,.08); }
 .bg.dark .tracklist li a { color: var(--ink); }
 .bg.dark .tracklist li a:hover { background: rgba(255,255,255,.06); }
-.bg.dark .trophy.done, .bg.dark .radio.on, .bg.dark .char.lead { background: rgba(255,255,255,.12); }
+.bg.dark .trophy.done, .bg.dark .radio.on, .bg.dark .char.protag { background: rgba(255,255,255,.12); }
 .bg.dark .ava2 i { background: #2a2038; }
 .bg.dark .mx-region { fill: #3b1a5c; }
 .bg.dark .timeline::before { background: rgba(255,255,255,.14); }
@@ -731,3 +731,45 @@ main.loading { opacity: .4; }
 .lm-map.mid .lm-badge { transform: scale(.78); }
 .lm-map.far .lm-badge:hover, .lm-map.far .lm-badge.active { transform: scale(.9); }
 .lm-map.mid .lm-badge:hover, .lm-map.mid .lm-badge.active { transform: scale(1); }
+
+/* ===== v4: UI limpa (mesma paleta, menos brilho e sombra, mais respiro) ===== */
+:root { --glass: rgba(255,255,255,.8); --glass2: rgba(255,255,255,.9); --edge: rgba(255,255,255,.6); --r: 18px; }
+.bg { background: linear-gradient(180deg, #8e6cf0 0%, #b77ee6 30%, #e58bd6 62%, #f4a3b4 85%, #f9bf98 100%); background-attachment: fixed; }
+.glass { backdrop-filter: none; -webkit-backdrop-filter: none; box-shadow: 0 1px 2px rgba(60,20,90,.06), 0 4px 14px rgba(60,20,90,.06); padding: 16px; margin-bottom: 10px; }
+.bg.dark { --glass: rgba(255,255,255,.055); --glass2: rgba(255,255,255,.09); --edge: rgba(255,255,255,.08);
+  background: linear-gradient(180deg, #1c1529 0%, #1b1426 60%, #211528 100%); }
+.bg.dark .glass { box-shadow: none; }
+.round { box-shadow: none; }
+.section { font-size: 1.15rem; font-weight: 750; margin: 28px 4px 12px; letter-spacing: -.01em; }
+.cards small { line-height: 1.45; }
+.cards > li { gap: 14px; }
+.tabbar { box-shadow: 0 8px 28px rgba(40,10,70,.18); }
+.lead { font-size: .95rem; }
+.pill { box-shadow: none; }
+.cover, .covercard .cover, .station-top .cover { box-shadow: 0 4px 12px rgba(40,10,70,.18) !important; }
+.ava2 { box-shadow: none; }
+
+/* retratos e troféus */
+.portrait { flex-shrink: 0; border-radius: 18px; display: block; }
+.char { align-items: center !important; }
+.trophy-ico { filter: drop-shadow(0 1px 1px rgba(0,0,0,.18)); flex-shrink: 0; }
+.trophy-ico.dim { filter: saturate(.55) opacity(.6); }
+
+/* glossário no Buscar */
+.gcats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.gcat { text-align: left; padding: 14px; border-radius: 16px; background: var(--glass); border: 1px solid var(--edge); }
+.gcat b { display: block; font-size: .95rem; }
+.gcat small { color: var(--mut); font-size: .78rem; margin-top: 2px; }
+.gcat.on { background: linear-gradient(135deg, #fbcfe8, #fed7aa); color: #9d174d; }
+.gcat.on small { color: #9d174d; opacity: .8; }
+.bg.dark .gcat.on { background: rgba(236,72,153,.18); color: #f9a8d4; }
+.gloss { list-style: none; margin: 12px 0 0; padding: 0; border-radius: 18px; overflow: hidden; background: var(--glass); border: 1px solid var(--edge); }
+.gloss li + li { border-top: 1px solid rgba(109,40,217,.08); }
+.bg.dark .gloss li + li { border-top-color: rgba(255,255,255,.06); }
+.gloss button { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 16px; text-align: left; }
+.gloss button svg { color: var(--mut); transition: transform .15s; flex-shrink: 0; }
+.gloss li.open button svg { transform: rotate(180deg); }
+.gloss p { padding: 0 16px 14px; color: var(--ink2); line-height: 1.5; font-size: .92rem; }
+.gdef { margin-top: 10px; }
+.gdef p { margin-top: 6px; color: var(--ink2); line-height: 1.5; }
+.tcard a.pill { display: inline-flex; align-items: center; gap: 6px; margin-top: 10px; text-decoration: none; }
