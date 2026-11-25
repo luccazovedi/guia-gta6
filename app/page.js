@@ -69,7 +69,7 @@ export default function App() {
   return (
     <div className={"bg " + theme}>
       <div className="phone">
-        {view !== "inicio" && (
+        {view !== "inicio" && view !== "mapa" && (
           <header className="subhead">
             <button className="round" onClick={() => go(TABBAR.some(([t]) => t === view) ? "inicio" : prev === view ? "inicio" : prev)} aria-label="Voltar"><ChevronLeft size={20} /></button>
             <h1>{TITLES[view]}</h1>
@@ -80,7 +80,7 @@ export default function App() {
         <main className={ready ? "" : "loading"}>
           {view === "inicio" && <HomeView {...ctx} />}
           {view === "guias" && <Guides {...ctx} />}
-          {view === "mapa" && <LeonidaMap state={state} update={update} fav={fav} />}
+          {view === "mapa" && <LeonidaMap state={state} update={update} fav={fav} onBack={() => go("inicio")} />}
           {view === "missoes" && <Missions {...ctx} />}
           {view === "busca" && <SearchView {...ctx} />}
           {view === "trofeus" && <Trophies {...ctx} />}
@@ -91,7 +91,7 @@ export default function App() {
           {view === "psn" && <Profile {...ctx} />}
           {view === "novidades" && <News {...ctx} />}
           {view === "notas" && <Notes {...ctx} />}
-          <p className="legal">Projeto de fã, sem vínculo com Rockstar Games, Take-Two ou Sony. Dados de guias públicos da semana de lançamento (nov/2026).</p>
+          {view !== "mapa" && <p className="legal">Projeto de fã, sem vínculo com Rockstar Games, Take-Two ou Sony. Dados de guias públicos da semana de lançamento (nov/2026).</p>}
         </main>
 
         <nav className="tabbar">
