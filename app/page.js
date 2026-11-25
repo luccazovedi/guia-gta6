@@ -43,7 +43,8 @@ export default function App() {
           {view === "inicio" && <HomeView {...ctx} />}
           {view === "guias" && <Guides {...ctx} />}
           {view === "mapa" && (
-            <LeonidaMap pins={state.pins}
+            <LeonidaMap pins={state.pins} visited={state.visited || {}}
+              onToggleVisited={(id) => update((st) => ({ visited: { ...(st.visited || {}), [id]: !(st.visited || {})[id] } }))}
               onAddPin={(p) => update((st) => ({ pins: [...st.pins, p] }))}
               onRemovePin={(i) => update((st) => ({ pins: st.pins.filter((_, j) => j !== i) }))} />
           )}
