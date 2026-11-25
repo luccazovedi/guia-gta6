@@ -10,6 +10,7 @@ import {
   Zap, Landmark, Vault, ShoppingBag, Gem, Skull, Star, House, Store, Activity, Trophy, Radio, HandCoins, Banknote, Wrench, Swords,
 } from "lucide-react";
 import { GROUPS, CAT, REGIONS_MAP, DISTRICTS, MARKERS, POINTS, TOWNS } from "../lib/mapdata";
+import { Sheet } from "./ui";
 
 // CRS com y para baixo (coordenadas 0–1000 do mapa)
 const CRS = L.extend({}, L.CRS.Simple, { transformation: new L.Transformation(1, 0, 1, 0) });
@@ -42,12 +43,11 @@ function compress(file) {
   });
 }
 
-export default function LeonidaMap({ state, update, fav, onBack }) {
+export default function LeonidaMap({ state, update, fav, onBack, toggleFound, focusCat, focusPoint, photos = {}, setPhoto, removePhoto }) {
   const pins = state.pins || [];
   const found = state.visited || {};
   const favs = state.favs || {};
   const notes = state.mapNotes || {};
-  const photos = state.photos || {};
   const hidden = state.mapHidden || {};
   const hideFound = !!state.mapHideFound;
   const onlyFavs = !!state.mapOnlyFavs;
@@ -71,9 +71,9 @@ export default function LeonidaMap({ state, update, fav, onBack }) {
     ...POINTS,
     ...pins.map((p, i) => ({ ...p, id: p.id || "pin" + i, cat: CAT[p.kind] ? p.kind : "outro", idx: i, mine: true })),
   ], [pins]);
-  const passes = (m) => !hidden[m.cat] && !(hideFound && found[m.id]) && !(onlyFavs && !favs["p:" + m.id]);
+  const [solo, setSolo] = useState(focusCat || null);
+  const passes = (m) => (solo ? m.cat === solo : !hidden[m.cat]) && !(hideFound && found[m.id]) && !(onlyFavs && !favs["p:" + m.id]);
   const select = (m) => { setSel(m); setNoteText(notes[m.id] || ""); };
-  const toggleFound = (id) => update((st) => ({ visited: { ...(st.visited || {}), [id]: !(st.visited || {})[id] } }));
   const flyTo = (m, z = 1.8) => mapRef.current?.flyTo(toLL(m), z, { duration: 0.6 });
 
   // cria o mapa
@@ -109,6 +109,21 @@ export default function LeonidaMap({ state, update, fav, onBack }) {
     mapRef.current = map;
     return () => map.remove();
   }, []);
+  // foco vindo da URL: /mapa/<camada> ou /mapa?p=<ponto>
+  useEffect(() => { setSolo(focusCat || null); if (focusCat) { setOpenCat(focusCat); setDrawer("full"); } }, [focusCat]);
+  useEffect(() => {
+    if (!focusPoint) return;
+    const m = markers.find((x) => x.id === focusPoint);
+    if (!m) return;
+    const t = setTimeout(() => { flyTo(m, 2); select(m); setDrawer("peek"); }, 150);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusPoint]);
+  useEffect(() => {
+    const k = (e) => { if (e.key === "Escape" && !draft) { setSel(null); setAdding(false); } };
+    document.addEventListener("keydown", k);
+    return () => document.removeEventListener("keydown", k);
+  }, [draft]);
   useEffect(() => { addingRef.current = adding; el.current?.classList.toggle("adding", adding); }, [adding]);
 
   // desenha os marcadores
@@ -125,7 +140,7 @@ export default function LeonidaMap({ state, update, fav, onBack }) {
         .on("click", () => { if (!addingRef.current) { select(m); setDrawer("peek"); } })
         .addTo(layer);
     }
-  }, [markers, hidden, hideFound, onlyFavs, found, favs, notes, photos, sel]);
+  }, [markers, hidden, hideFound, onlyFavs, found, favs, notes, photos, sel, solo]);
 
   const total = markers.length;
   const foundCount = markers.filter((m) => found[m.id]).length;
@@ -138,7 +153,7 @@ export default function LeonidaMap({ state, update, fav, onBack }) {
   async function addPhoto(e) {
     const f = e.target.files?.[0];
     if (!f || !sel) return;
-    try { const url = await compress(f); update((st) => ({ photos: { ...(st.photos || {}), [sel.id]: url } })); }
+    try { const url = await compress(f); await setPhoto(sel.id, url); }
     catch { alert("Não foi possível ler a foto."); }
     e.target.value = "";
   }
@@ -152,24 +167,31 @@ export default function LeonidaMap({ state, update, fav, onBack }) {
       <div className="lm-bar"><span style={{ width: (total ? (foundCount / total) * 100 : 0) + "%" }} /></div>
       <div className="lm-search">
         <Search size={17} />
-        <input placeholder="Buscar lugares, pins e notas" value={q} onFocus={() => setDrawer("full")} onChange={(e) => setQ(e.target.value)} />
+        <input aria-label="Buscar no mapa" placeholder="Buscar lugares, pins e notas" value={q} onFocus={() => setDrawer("full")} onChange={(e) => setQ(e.target.value)} />
         {q && <button onClick={() => setQ("")} aria-label="Limpar"><X size={16} /></button>}
       </div>
       {results.length > 0 && (
         <ul className="lm-results">
           {results.map((m, i) => (
-            <li key={i} onClick={() => { flyTo(m, m.region && !m.county?.startsWith("Bairro") ? 1 : 2); if (!m.region) select(m); setQ(""); setDrawer("peek"); }}>
+            <li key={i} role="button" tabIndex={0} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.click(); }} onClick={() => { flyTo(m, m.region && !m.county?.startsWith("Bairro") ? 1 : 2); if (!m.region) select(m); setQ(""); setDrawer("peek"); }}>
               <span className="cdot" style={{ background: m.region ? "#6d28d9" : CAT[m.cat]?.color }}>{m.region ? <Navigation size={12} /> : <CatIcon k={m.cat} size={12} />}</span>
               <span className="grow">{m.name}<small>{m.region ? m.county || "Região" : CAT[m.cat]?.label}</small></span>
             </li>
           ))}
         </ul>
       )}
+      {solo && CAT[solo] && (
+        <div className="lm-solo">
+          <span className="cdot" style={{ background: CAT[solo].color }}><CatIcon k={solo} size={12} /></span>
+          <span className="grow">Mostrando só <b>{CAT[solo].label}</b></span>
+          <button onClick={() => setSolo(null)} aria-label="Mostrar todas as camadas"><X size={15} /></button>
+        </div>
+      )}
       <div className="lm-chips">
         <button className={hideFound ? "on" : ""} onClick={() => setPref({ mapHideFound: !hideFound })}><EyeOff size={14} /> Esconder encontrados</button>
         <button className={onlyFavs ? "on" : ""} onClick={() => setPref({ mapOnlyFavs: !onlyFavs })}><Heart size={14} /> Favoritos</button>
-        <button onClick={() => setPref({ mapHidden: {} })}><Eye size={14} /> Mostrar tudo</button>
-        <button onClick={() => setPref({ mapHidden: Object.fromEntries(Object.keys(CAT).map((c) => [c, true])) })}><EyeOff size={14} /> Ocultar tudo</button>
+        <button onClick={() => { setSolo(null); setPref({ mapHidden: {} }); }}><Eye size={14} /> Mostrar tudo</button>
+        <button onClick={() => { setSolo(null); setPref({ mapHidden: Object.fromEntries(Object.keys(CAT).map((c) => [c, true])) }); }}><EyeOff size={14} /> Ocultar tudo</button>
       </div>
       <div className="lm-jumps">
         {JUMPS.map(([n, x, y, z]) => <button key={n} onClick={() => { flyTo({ x, y }, z); setDrawer("peek"); }}><Locate size={13} /> {n}</button>)}
@@ -186,12 +208,12 @@ export default function LeonidaMap({ state, update, fav, onBack }) {
               <div key={c.key} className={"lm-row" + (hidden[c.key] ? " off" : "")}>
                 <div className="lm-main">
                   <span className="cdot lg" style={{ background: c.color }}><CatIcon k={c.key} size={16} /></span>
-                  <button className="grow lm-name" onClick={() => setOpenCat(isOpen ? null : c.key)}>
+                  <button className="grow lm-name" onClick={() => setOpenCat(isOpen ? null : c.key)} aria-expanded={isOpen}>
                     <b>{c.label}</b>
                     <small>{n}/{list.length} no mapa{c.total ? ` · ${c.total} no jogo` : ""}{counter != null ? ` · Tracker ${counter}` : ""}</small>
                   </button>
                   {list.length > 0 && (isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />)}
-                  <button className="lm-eye" onClick={() => setPref({ mapHidden: { ...hidden, [c.key]: !hidden[c.key] } })} aria-label="Mostrar ou esconder">
+                  <button className="lm-eye" onClick={() => { setSolo(null); setPref({ mapHidden: { ...hidden, [c.key]: !hidden[c.key] } }); }} aria-label={(hidden[c.key] ? "Mostrar " : "Esconder ") + c.label} aria-pressed={!hidden[c.key]}>
                     {hidden[c.key] ? <EyeOff size={18} /> : <Eye size={18} />}
                   </button>
                 </div>
@@ -199,7 +221,7 @@ export default function LeonidaMap({ state, update, fav, onBack }) {
                   <ul className="lm-list">
                     {list.map((m) => (
                       <li key={m.id}>
-                        <button className={"tick" + (found[m.id] ? " on" : "")} onClick={() => toggleFound(m.id)} aria-label="Encontrado"><Check size={13} /></button>
+                        <button className={"tick" + (found[m.id] ? " on" : "")} onClick={() => toggleFound(m)} aria-label={(found[m.id] ? "Desmarcar " : "Marcar encontrado: ") + m.name} aria-pressed={!!found[m.id]}><Check size={13} /></button>
                         <button className="grow left" onClick={() => { flyTo(m, 2); select(m); setDrawer("peek"); }}>{m.name}<small>{regionOf(m)}</small></button>
                         {favs["p:" + m.id] && <Heart size={14} fill="currentColor" className="favmark" />}
                       </li>
@@ -217,7 +239,7 @@ export default function LeonidaMap({ state, update, fav, onBack }) {
 
   return (
     <div className="lm">
-      <div ref={el} className="lm-map" />
+      <div ref={el} className="lm-map" role="application" aria-label="Mapa de Leonida" />
 
       <div className="lm-top">
         <button className="lm-fab" onClick={onBack} aria-label="Voltar"><ChevronLeft size={20} /></button>
@@ -238,7 +260,7 @@ export default function LeonidaMap({ state, update, fav, onBack }) {
       </aside>
 
       {sel && (
-        <div className="lm-card">
+        <div className="lm-card" role="dialog" aria-label={sel.name}>
           <div className="row between">
             {sel.region ? <span className="mk-cat" style={{ color: "#a78bfa" }}><Navigation size={14} /> {sel.county || "Região"}</span>
               : <span className="mk-cat" style={{ color: CAT[sel.cat]?.color }}><CatIcon k={sel.cat} size={14} /> {CAT[sel.cat]?.label}{sel.mine ? " · meu pin" : ""}</span>}
@@ -248,7 +270,7 @@ export default function LeonidaMap({ state, update, fav, onBack }) {
           <p className="mk-region"><Navigation size={13} /> {regionOf(sel)}{sel.approx ? " · posição aproximada" : ""}</p>
           <p className="mk-text">{sel.mine ? sel.note || "Marcador pessoal." : sel.text}</p>
           <div className="mk-actions">
-            <button className={found[sel.id] ? "on found" : ""} onClick={() => toggleFound(sel.id)}><Check size={18} />{found[sel.id] ? "Encontrado" : "Encontrei"}</button>
+            <button className={found[sel.id] ? "on found" : ""} onClick={() => toggleFound(sel)}><Check size={18} />{found[sel.id] ? "Encontrado" : "Encontrei"}</button>
             <button className={favs["p:" + sel.id] ? "on fav" : ""} onClick={() => fav("p:" + sel.id)}><Heart size={18} fill={favs["p:" + sel.id] ? "currentColor" : "none"} />Favorito</button>
             <button onClick={() => fileRef.current?.click()}><Camera size={18} />Foto</button>
             {sel.mine && <button onClick={() => setDraft({ ...sel })}><Pencil size={18} />Editar</button>}
@@ -257,7 +279,7 @@ export default function LeonidaMap({ state, update, fav, onBack }) {
           {photos[sel.id] && (
             <div className="mk-photo">
               <img src={photos[sel.id]} alt="Sua foto deste local" />
-              <button className="round small" onClick={() => update((st) => { const p = { ...(st.photos || {}) }; delete p[sel.id]; return { photos: p }; })} aria-label="Remover foto"><Trash2 size={15} /></button>
+              <button className="round small" onClick={() => removePhoto(sel.id)} aria-label="Remover foto"><Trash2 size={15} /></button>
             </div>
           )}
           <label className="mk-note">
@@ -270,9 +292,7 @@ export default function LeonidaMap({ state, update, fav, onBack }) {
       )}
 
       {draft && (
-        <div className="scrim" onClick={() => setDraft(null)}>
-          <div className="sheet layers" onClick={(e) => e.stopPropagation()}>
-            <div className="grab" />
+        <Sheet close={() => setDraft(null)} className="layers" label={draft.isNew ? "Marcar no mapa" : "Editar marcador"}>
             <h2>{draft.isNew ? "Marcar no mapa" : "Editar marcador"}</h2>
             {GROUPS.map((g) => (
               <div key={g.id} className="kgroup">
@@ -301,8 +321,7 @@ export default function LeonidaMap({ state, update, fav, onBack }) {
                 <button className="round" onClick={() => { update((st) => ({ pins: st.pins.filter((_, j) => j !== draft.idx) })); setDraft(null); setSel(null); }} aria-label="Apagar"><Trash2 size={18} /></button>
               )}
             </div>
-          </div>
-        </div>
+        </Sheet>
       )}
     </div>
   );
