@@ -9,12 +9,10 @@ import {
   Layers, Newspaper, Moon, Sun, Plus, Trash2, Flag as FlagIcon, PieChart,
 } from "lucide-react";
 import { CHAPTERS, MISSIONS, TROPHIES, COMPLETION, RADIOS, CHARACTERS, TIPS, NEWS, REGIONS } from "../lib/data";
-import { MARKERS } from "../lib/mapdata";
 import { useProgress, stats, applyPsn, useCloudSync } from "../lib/store";
 import { supabase } from "../lib/supabase";
 import { StationCover, TrophyIcon } from "../components/Art";
 
-const LeonidaMap = dynamic(() => import("../components/LeonidaMap"), { ssr: false });
 
 const TITLES = {
   guias: "Guias", mapa: "Mapa", missoes: "Missões", busca: "Buscar", trofeus: "Troféus", cem: "Tracker 100%",
@@ -79,14 +77,7 @@ export default function App() {
         <main className={ready ? "" : "loading"}>
           {view === "inicio" && <HomeView {...ctx} />}
           {view === "guias" && <Guides {...ctx} />}
-          {view === "mapa" && <MapTabs>{(
-            <LeonidaMap pins={state.pins} visited={state.visited || {}} favs={state.favs}
-              onToggleVisited={(id) => update((st) => ({ visited: { ...(st.visited || {}), [id]: !(st.visited || {})[id] } }))}
-              onToggleFav={fav}
-              onAddPin={(p) => update((st) => ({ pins: [...st.pins, p] }))}
-              onUpdatePin={(i, p) => update((st) => ({ pins: st.pins.map((x, j) => (j === i ? p : x)) }))}
-              onRemovePin={(i) => update((st) => ({ pins: st.pins.filter((_, j) => j !== i) }))} />
-          )}</MapTabs>}
+          {view === "mapa" && <GtaBaseMap />}
           {view === "missoes" && <Missions {...ctx} />}
           {view === "busca" && <SearchView {...ctx} />}
           {view === "trofeus" && <Trophies {...ctx} />}
@@ -574,7 +565,6 @@ function Favorites({ state, openMission, go }) {
     if (t === "m") { const m = MISSIONS.find((x) => x.id === +id); return m && { k, kind: "Missão", name: m.name, sub: `Capítulo ${m.chapter}`, act: () => openMission(m) }; }
     if (t === "t") { const x = TROPHIES.find((y) => y.id === id); return x && { k, kind: "Troféu", name: x.name, sub: x.desc, act: () => go("trofeus") }; }
     if (t === "r") { const x = RADIOS.find((y) => y.id === id); return x && { k, kind: "Rádio", name: x.name, sub: x.genre, act: () => go("radio") }; }
-    if (t === "p") { const x = MARKERS.find((y) => y.id === id) || state.pins.find((y) => y.id === id); return x && { k, kind: "Lugar no mapa", name: x.name, sub: x.text || x.note, act: () => go("mapa") }; }
     if (t === "c") { const x = CHARACTERS.find((y) => y.name === id); return x && { k, kind: "Personagem", name: x.name, sub: x.role, act: () => go("personagens") }; }
   }).filter(Boolean);
   if (!items.length) return <div className="empty"><Heart size={40} /><p>Toque no coração em missões, troféus, rádios e personagens para guardá-los aqui.</p></div>;
@@ -625,26 +615,21 @@ function SearchView({ state, openMission, go }) {
   );
 }
 
-/* ---------- Mapa: nosso + IGN incorporado ---------- */
-const IGN_URL = "https://www.ign.com/maps/gta-6/leonida";
-function MapTabs({ children }) {
-  const [src, setSrc] = useState("nosso");
+/* ---------- Mapa (GTA Base incorporado) ---------- */
+const MAP_URL = "https://www.gtabase.com/pt/gta-6/mapa/";
+function GtaBaseMap() {
+  const [loaded, setLoaded] = useState(false);
   return (
-    <>
-      <div className="segs">
-        <button className={src === "nosso" ? "on" : ""} onClick={() => setSrc("nosso")}>Nosso mapa</button>
-        <button className={src === "ign" ? "on" : ""} onClick={() => setSrc("ign")}>Mapa da IGN</button>
+    <div className="ign">
+      <div className="mapframe">
+        {!loaded && <div className="maploading"><MapIcon size={28} /><span>Carregando mapa…</span></div>}
+        <iframe src={MAP_URL} title="Mapa interativo de GTA 6 do GTA Base" allow="fullscreen" onLoad={() => setLoaded(true)} />
       </div>
-      {src === "nosso" ? children : (
-        <div className="ign">
-          <iframe src={IGN_URL} title="Mapa interativo de GTA 6 da IGN" loading="lazy" allow="fullscreen" />
-          <div className="glass ign-note">
-            <p className="muted">Mapa interativo da IGN, exibido do site deles. Se aparecer em branco, a IGN não permite ser aberta dentro de outros sites:</p>
-            <a className="cta full linkbtn" href={IGN_URL} target="_blank" rel="noreferrer">Abrir na IGN ↗</a>
-          </div>
-        </div>
-      )}
-    </>
+      <div className="glass ign-note">
+        <p className="muted">Mapa interativo do <b>GTA Base</b>, exibido do site deles, com filtros, busca, progresso e marcadores. Se aparecer em branco, o site não permite ser aberto dentro de outros apps:</p>
+        <a className="cta full linkbtn" href={MAP_URL} target="_blank" rel="noreferrer">Abrir no GTA Base ↗</a>
+      </div>
+    </div>
   );
 }
 
@@ -699,7 +684,6 @@ function News({ update, premium, go, openPro, state }) {
 /* ---------- Perfil ---------- */
 function Profile({ state, update, s, go, user, premium, cloud, openPro, theme }) {
   const [linkPsn, setLinkPsn] = useState(false);
-  const visited = Object.values(state.visited || {}).filter(Boolean).length;
   const heard = Object.values(state.radios).filter(Boolean).length;
   const favs = Object.values(state.favs).filter(Boolean).length;
   const rows = [
@@ -707,7 +691,6 @@ function Profile({ state, update, s, go, user, premium, cloud, openPro, theme })
     [Trophy, "Troféus", s.trophiesDone / 55],
     [PieChart, "Lista de 100%", s.completion / 100],
     [Radio, "Rádios ouvidas", heard / RADIOS.length],
-    [MapPin, "Lugares do mapa", visited / MARKERS.length],
   ];
   return (
     <>
@@ -733,8 +716,8 @@ function Profile({ state, update, s, go, user, premium, cloud, openPro, theme })
       <div className="glass">
         <h4 className="row"><Layers size={18} /> Sua Leonida</h4>
         <div className="statgrid">
-          <button onClick={() => go("mapa")}><span><CircleCheck size={18} /> {visited}</span><small>Lugares visitados</small></button>
-          <button onClick={() => go("mapa")}><span><MapPin size={18} /> {state.pins.length}</span><small>Meus pins</small></button>
+          <button onClick={() => go("missoes")}><span><CircleCheck size={18} /> {s.missionsDone}</span><small>Missões feitas</small></button>
+          <button onClick={() => go("cem")}><span><PieChart size={18} /> {s.linesDone}</span><small>Linhas de 100%</small></button>
           <button onClick={() => go("favoritos")}><span><Heart size={18} /> {favs}</span><small>Favoritos</small></button>
           <button onClick={() => go("notas")}><span><StickyNote size={18} /> {(state.notes || []).length}</span><small>Notas</small></button>
           <button onClick={() => go("radio")}><span><Radio size={18} /> {heard}</span><small>Rádios ouvidas</small></button>
@@ -772,7 +755,7 @@ function Profile({ state, update, s, go, user, premium, cloud, openPro, theme })
       <div className="glass">
         <h4>Zerar progresso</h4>
         <p className="muted">Apaga o progresso deste aparelho e da nuvem.</p>
-        <button className="cta ghost" onClick={() => { if (confirm("Apagar todo o progresso?")) update(() => ({ missions: {}, trophies: {}, counters: {}, radios: {}, pins: [], visited: {}, favs: {}, notes: [], psn: null })); }}>Zerar</button>
+        <button className="cta ghost" onClick={() => { if (confirm("Apagar todo o progresso?")) update(() => ({ missions: {}, trophies: {}, counters: {}, radios: {}, favs: {}, notes: [], psn: null })); }}>Zerar</button>
       </div>
 
       {linkPsn && <PsnSheet state={state} update={update} close={() => setLinkPsn(false)} />}

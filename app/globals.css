@@ -558,3 +558,6 @@ main.loading { opacity: .4; }
 .bg.dark .kind { border-color: rgba(255,255,255,.14); }
 .bg.dark .round.active { background: rgba(255,255,255,.18); color: #f9a8d4; }
 .bg.dark .pill.sm:not(.solid) { background: rgba(255,255,255,.1); color: var(--ink); border-color: rgba(255,255,255,.16); }
+.mapframe { position: relative; }
+.mapframe iframe { width: 100%; height: 74vh; border: 1px solid var(--edge); border-radius: 26px; background: #fff; box-shadow: 0 14px 44px rgba(80, 30, 120, .25); display: block; }
+.maploading { position: absolute; inset: 0; display: grid; place-content: center; justify-items: center; gap: 8px; color: var(--mut); font-weight: 600; pointer-events: none; }
