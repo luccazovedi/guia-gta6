@@ -7,7 +7,7 @@ export const metadata = {
   title: "Leonida Log — Guia de GTA VI com tracker 100% e troféus PSN",
   description: "Guia fã-made de GTA VI: mapa, 91 missões, 55 troféus, todas as rádios, personagens, dicas e tracker 100% com sincronização PSN.",
 };
-export const viewport = { themeColor: "#120a1f", width: "device-width", initialScale: 1 };
+export const viewport = { themeColor: "#8e6cf0", width: "device-width", initialScale: 1 };
 
 export default function RootLayout({ children }) {
   return (
