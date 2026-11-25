@@ -534,3 +534,27 @@ main.loading { opacity: .4; }
 .bg.dark .pill.solid { background: linear-gradient(90deg, #8b5cf6, #ec4899); color: #fff; border-color: transparent; }
 .bg.dark .segs.inset button { background: rgba(255,255,255,.06); color: var(--ink2); }
 .bg.dark .segs.inset button.on { background: rgba(255,255,255,.16); color: #f9a8d4; }
+
+/* mapa v3: lista, filtros, pins */
+.segs.modes { margin: 0; }
+.segs.modes button { display: inline-flex; align-items: center; gap: 6px; }
+.round .badge { top: -4px; right: -4px; }
+.ftoggles { display: flex; flex-wrap: wrap; gap: 14px; margin-bottom: 10px; font-weight: 600; font-size: .9rem; color: var(--ink2); }
+.ftoggles label { display: flex; align-items: center; gap: 6px; }
+.ftoggles input { accent-color: #ec4899; width: 18px; height: 18px; }
+.fchips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.maplist h4 .g, .kind .g { width: 22px; height: 22px; border-radius: 50%; display: inline-grid; place-items: center; color: #fff; font-size: .72rem; flex-shrink: 0; }
+.maplist h4 { margin-bottom: 2px; }
+.maplist .cnt { font: 600 .75rem var(--f-mono); color: var(--mut); }
+.lname { display: grid; text-align: left; }
+.lname b { font-weight: 600; font-size: .95rem; }
+.lname small { color: var(--mut); font-size: .78rem; }
+.list li.done .lname b { text-decoration: line-through; color: var(--mut); }
+.kinds { display: flex; flex-wrap: wrap; gap: 6px; margin: 12px 0; }
+.kind { display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px 6px 6px; border-radius: 999px; border: 1px solid #eadcf7; font-size: .85rem; font-weight: 600; color: var(--mut); }
+.kind.on { border-color: #ec4899; color: var(--ink); background: rgba(236,72,153,.08); }
+.field.area.sm { min-height: 90px; margin-top: 10px; }
+.mapx-info .fine svg { vertical-align: -2px; }
+.bg.dark .kind { border-color: rgba(255,255,255,.14); }
+.bg.dark .round.active { background: rgba(255,255,255,.18); color: #f9a8d4; }
+.bg.dark .pill.sm:not(.solid) { background: rgba(255,255,255,.1); color: var(--ink); border-color: rgba(255,255,255,.16); }

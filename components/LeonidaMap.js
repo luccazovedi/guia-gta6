@@ -1,7 +1,7 @@
 "use client";
 import { useRef, useState, useCallback, useEffect, useMemo } from "react";
-import { Plus, Minus, Maximize2, Search, Check, X, MapPin, Layers } from "lucide-react";
-import { CATEGORIES, COAST, LAKE, SWAMP, FOREST, CITY, ISLANDS, ROADS, REGIONS_MAP, DISTRICTS, MARKERS } from "../lib/mapdata";
+import { Plus, Minus, Maximize2, Search, Check, X, MapPin, SlidersHorizontal, Heart, List, Map as MapIcon, Pencil, Trash2, Navigation } from "lucide-react";
+import { CATEGORIES, PIN_KINDS, COAST, LAKE, SWAMP, FOREST, CITY, ISLANDS, ROADS, REGIONS_MAP, DISTRICTS, MARKERS } from "../lib/mapdata";
 
 const MIN = 1, MAX = 10;
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -10,13 +10,23 @@ const fit = (v) => {
   const lim = 1000 - 1000 * k;
   return { k, x: clamp(v.x, lim - 60, 60), y: clamp(v.y, lim - 60, 60) };
 };
+const styleOf = (m) => (m.cat === "pin" ? PIN_KINDS[m.kind] || PIN_KINDS.outro : CATEGORIES[m.cat]);
+const regionOf = (m) => {
+  let best = null, d = Infinity;
+  for (const r of REGIONS_MAP) { const dd = (r.x - m.x) ** 2 + (r.y - m.y) ** 2; if (dd < d) { d = dd; best = r; } }
+  return best?.name;
+};
 
-export default function LeonidaMap({ pins, visited = {}, onAddPin, onRemovePin, onToggleVisited }) {
+export default function LeonidaMap({ pins, visited = {}, favs = {}, onAddPin, onUpdatePin, onRemovePin, onToggleVisited, onToggleFav }) {
   const svgRef = useRef(null);
   const [view, setView] = useState({ x: 0, y: 0, k: 1 });
   const [sel, setSel] = useState(null);
   const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState(null); // pin sendo criado/editado
+  const [mode, setMode] = useState("mapa");
   const [off, setOff] = useState({});
+  const [hideVisited, setHideVisited] = useState(false);
+  const [onlyFavs, setOnlyFavs] = useState(false);
   const [q, setQ] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const pointers = useRef(new Map());
@@ -25,14 +35,13 @@ export default function LeonidaMap({ pins, visited = {}, onAddPin, onRemovePin, 
 
   const markers = useMemo(() => [
     ...MARKERS,
-    ...pins.map((p, i) => ({ ...p, id: "pin" + i, cat: "pin", idx: i })),
+    ...pins.map((p, i) => ({ ...p, id: p.id || "pin" + i, cat: "pin", idx: i, kind: p.kind || "outro" })),
   ], [pins]);
 
   const toSvg = useCallback((cx, cy) => {
     const r = svgRef.current.getBoundingClientRect();
     return { x: ((cx - r.left) / r.width) * 1000, y: ((cy - r.top) / r.height) * 1000 };
   }, []);
-
   const zoomAt = useCallback((px, py, factor) =>
     setView((v) => {
       const k = clamp(v.k * factor, MIN, MAX);
@@ -43,14 +52,11 @@ export default function LeonidaMap({ pins, visited = {}, onAddPin, onRemovePin, 
 
   useEffect(() => {
     const el = svgRef.current;
-    const onWheel = (e) => {
-      e.preventDefault();
-      const p = toSvg(e.clientX, e.clientY);
-      zoomAt(p.x, p.y, e.deltaY < 0 ? 1.2 : 1 / 1.2);
-    };
+    if (!el) return;
+    const onWheel = (e) => { e.preventDefault(); const p = toSvg(e.clientX, e.clientY); zoomAt(p.x, p.y, e.deltaY < 0 ? 1.2 : 1 / 1.2); };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [toSvg, zoomAt]);
+  }, [toSvg, zoomAt, mode]);
 
   const onDown = (e) => {
     pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
@@ -75,11 +81,9 @@ export default function LeonidaMap({ pins, visited = {}, onAddPin, onRemovePin, 
     } else if (pts.length === 1 && g?.last) {
       const s = 1000 / svgRef.current.getBoundingClientRect().width;
       const dx = (e.clientX - g.last.x) * s, dy = (e.clientY - g.last.y) * s;
-      if (Math.abs(e.clientX - g.last.x) + Math.abs(e.clientY - g.last.y) > 0) {
-        if (!moved.current && Math.hypot(dx, dy) < 4) return; // tolerância para toque
-        moved.current = true;
-        if (!svgRef.current.hasPointerCapture(e.pointerId)) svgRef.current.setPointerCapture(e.pointerId);
-      }
+      if (!moved.current && Math.hypot(dx, dy) < 4) return;
+      moved.current = true;
+      if (!svgRef.current.hasPointerCapture(e.pointerId)) svgRef.current.setPointerCapture(e.pointerId);
       g.last = { x: e.clientX, y: e.clientY };
       setView((v) => fit({ ...v, x: v.x + dx, y: v.y + dy }));
     }
@@ -89,56 +93,104 @@ export default function LeonidaMap({ pins, visited = {}, onAddPin, onRemovePin, 
     if (pointers.current.size === 1) gesture.current = { last: [...pointers.current.values()][0] };
     if (pointers.current.size === 0 && adding && !moved.current) {
       const p = toSvg(e.clientX, e.clientY);
-      const x = (p.x - view.x) / view.k, y = (p.y - view.y) / view.k;
-      const name = prompt("Nome do pin (ex.: Flamingo #12, carta, cofre):");
-      if (name) onAddPin({ name, x: +x.toFixed(1), y: +y.toFixed(1), text: "Marcador pessoal" });
+      setDraft({ id: "pin-" + Date.now(), name: "", kind: "flamingo", note: "", x: +((p.x - view.x) / view.k).toFixed(1), y: +((p.y - view.y) / view.k).toFixed(1), isNew: true });
       setAdding(false);
     }
   };
   const tap = (fn) => () => { if (!moved.current && !adding) fn(); };
 
   const k = view.k;
-  const visible = markers.filter((m) => !off[m.cat]);
-  const results = q.trim().length > 1
+  const passes = (m) => !off[m.cat === "pin" ? "pin:" + m.kind : m.cat] && !(hideVisited && visited[m.id]) && !(onlyFavs && !favs["p:" + m.id]);
+  const visible = markers.filter(passes);
+  const ql = q.trim().toLowerCase();
+  const results = ql.length > 1
     ? [...REGIONS_MAP.map((r) => ({ ...r, region: true })), ...DISTRICTS.map((d) => ({ ...d, region: true, county: "Distrito de Vice City", text: "Bairro de Vice City." })), ...markers]
-        .filter((m) => m.name.toLowerCase().includes(q.trim().toLowerCase())).slice(0, 6)
+        .filter((m) => (m.name + " " + (m.note || "")).toLowerCase().includes(ql)).slice(0, 6)
     : [];
-  const counts = Object.fromEntries(Object.keys(CATEGORIES).map((c) => {
-    const list = markers.filter((m) => m.cat === c);
-    return [c, { total: list.length, done: list.filter((m) => visited[m.id]).length }];
-  }));
+  const groups = [
+    ...Object.entries(CATEGORIES).filter(([c]) => c !== "pin").map(([c, cfg]) => ({ key: c, ...cfg, list: markers.filter((m) => m.cat === c) })),
+    ...Object.entries(PIN_KINDS).map(([kd, cfg]) => ({ key: "pin:" + kd, ...cfg, label: "Pin · " + cfg.label, list: markers.filter((m) => m.cat === "pin" && m.kind === kd) })),
+  ];
+  const activeFilters = Object.values(off).filter(Boolean).length + (hideVisited ? 1 : 0) + (onlyFavs ? 1 : 0);
+  const openItem = (m) => { setSel(m); setMode("mapa"); flyTo(m, Math.max(k, 4)); };
 
   return (
     <div className="mapx">
       <div className="mapx-top">
         <div className="mapx-search glass">
           <Search size={17} />
-          <input placeholder="Buscar no mapa…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <input placeholder="Buscar lugar, pin ou nota…" value={q} onChange={(e) => setQ(e.target.value)} />
           {q && <button onClick={() => setQ("")} aria-label="Limpar"><X size={16} /></button>}
         </div>
-        <button className={"round" + (showFilters ? " active" : "")} onClick={() => setShowFilters(!showFilters)} aria-label="Camadas"><Layers size={19} /></button>
+        <button className={"round" + (showFilters ? " active" : "")} onClick={() => setShowFilters(!showFilters)} aria-label="Filtros">
+          <SlidersHorizontal size={19} />{activeFilters > 0 && <span className="badge">{activeFilters}</span>}
+        </button>
       </div>
       {results.length > 0 && (
         <ul className="mapx-results glass">
           {results.map((m, i) => (
-            <li key={i} onClick={() => { flyTo(m, m.region && !m.county?.startsWith("Distrito") ? 2.5 : 5); setSel(m); setQ(""); }}>
+            <li key={i} onClick={() => { setMode("mapa"); flyTo(m, m.region && !m.county?.startsWith("Distrito") ? 2.5 : 5); setSel(m); setQ(""); }}>
               <MapPin size={15} /> <span>{m.name}</span>
             </li>
           ))}
         </ul>
       )}
+
+      <div className="segs modes">
+        <button className={mode === "mapa" ? "on" : ""} onClick={() => setMode("mapa")}><MapIcon size={15} /> Mapa</button>
+        <button className={mode === "lista" ? "on" : ""} onClick={() => setMode("lista")}><List size={15} /> Lista</button>
+        <button className={onlyFavs ? "on" : ""} onClick={() => setOnlyFavs(!onlyFavs)}><Heart size={15} fill={onlyFavs ? "currentColor" : "none"} /> Favoritos</button>
+      </div>
+
       {showFilters && (
         <div className="mapx-filters glass">
-          {Object.entries(CATEGORIES).map(([c, cfg]) => (
-            <button key={c} className={"fchip" + (off[c] ? "" : " on")} onClick={() => setOff({ ...off, [c]: !off[c] })}>
-              <span className="g" style={{ background: cfg.color }}>{cfg.glyph}</span>
-              {cfg.label}
-              <small>{counts[c].done}/{counts[c].total}</small>
-            </button>
-          ))}
+          <div className="ftoggles">
+            <label><input type="checkbox" checked={hideVisited} onChange={(e) => setHideVisited(e.target.checked)} /> Esconder visitados</label>
+            <label><input type="checkbox" checked={onlyFavs} onChange={(e) => setOnlyFavs(e.target.checked)} /> Só favoritos</label>
+          </div>
+          <div className="fchips">
+            {groups.filter((g) => g.list.length || !g.key.startsWith("pin:")).map((g) => (
+              <button key={g.key} className={"fchip" + (off[g.key] ? "" : " on")} onClick={() => setOff({ ...off, [g.key]: !off[g.key] })}>
+                <span className="g" style={{ background: g.color }}>{g.glyph}</span>{g.label}
+                <small>{g.list.filter((m) => visited[m.id]).length}/{g.list.length}</small>
+              </button>
+            ))}
+          </div>
+          <div className="row">
+            <button className="pill sm" onClick={() => setOff({})}>Mostrar tudo</button>
+            <button className="pill sm" onClick={() => setOff(Object.fromEntries(groups.map((g) => [g.key, true])))}>Esconder tudo</button>
+          </div>
         </div>
       )}
 
+      {mode === "lista" ? (
+        <div className="maplist">
+          {groups.map((g) => {
+            const list = g.list.filter(passes);
+            if (!list.length) return null;
+            return (
+              <div key={g.key} className="glass">
+                <h4 className="row between"><span className="row"><span className="g" style={{ background: g.color }}>{g.glyph}</span> {g.label}</span>
+                  <small className="cnt">{g.list.filter((m) => visited[m.id]).length}/{g.list.length}</small></h4>
+                <ul className="list">
+                  {list.map((m) => (
+                    <li key={m.id} className={visited[m.id] ? "done" : ""}>
+                      <button className={"tick" + (visited[m.id] ? " on" : "")} onClick={() => onToggleVisited(m.id)} aria-label="Visitado"><Check size={14} /></button>
+                      <button className="grow item" onClick={() => openItem(m)}>
+                        <span className="lname"><b>{m.name}</b><small>{m.note || regionOf(m)}</small></span>
+                      </button>
+                      <button className={"favbtn" + (favs["p:" + m.id] ? " on" : "")} onClick={() => onToggleFav("p:" + m.id)} aria-label="Favoritar">
+                        <Heart size={17} fill={favs["p:" + m.id] ? "currentColor" : "none"} />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+          {!groups.some((g) => g.list.filter(passes).length) && <p className="pad">Nada com esses filtros.</p>}
+        </div>
+      ) : (
       <div className="mapx-stage">
         <svg ref={svgRef} viewBox="0 0 1000 1000" className={"mapx-svg" + (adding ? " adding" : "")}
           onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={onUp}
@@ -209,7 +261,7 @@ export default function LeonidaMap({ pins, visited = {}, onAddPin, onRemovePin, 
             ))}
 
             {visible.map((m) => {
-              const c = CATEGORIES[m.cat];
+              const c = styleOf(m);
               const done = visited[m.id];
               const active = sel?.id === m.id;
               return (
@@ -218,12 +270,12 @@ export default function LeonidaMap({ pins, visited = {}, onAddPin, onRemovePin, 
                   <ellipse cx="0" cy="0" rx="6" ry="2.5" fill="#0003" />
                   <path d="M0 0 C -5 -9 -15 -15 -15 -27 A 15 15 0 1 1 15 -27 C 15 -15 5 -9 0 0 Z" fill={done ? "#94a3b8" : c.color} stroke="#fff" strokeWidth="2.5" />
                   <text x="0" y="-21.5" textAnchor="middle" className="mx-glyph">{done ? "✓" : c.glyph}</text>
+                  {favs["p:" + m.id] && <circle cx="12" cy="-38" r="6" fill="#ec4899" stroke="#fff" strokeWidth="2" />}
                 </g>
               );
             })}
           </g>
         </svg>
-
         <div className="mapx-zoom">
           <button onClick={() => zoomAt(500, 500, 1.6)} aria-label="Aproximar"><Plus size={18} /></button>
           <button onClick={() => zoomAt(500, 500, 1 / 1.6)} aria-label="Afastar"><Minus size={18} /></button>
@@ -237,32 +289,67 @@ export default function LeonidaMap({ pins, visited = {}, onAddPin, onRemovePin, 
           <button onClick={() => flyTo({ x: 620, y: 920 }, 2.6)}>Keys</button>
         </div>
       </div>
+      )}
 
+      {mode === "mapa" && (
       <div className="mapx-info glass">
         {sel ? (
           <>
             <div className="row between">
-              <span className="mx-cat" style={{ color: sel.region ? "#6d28d9" : CATEGORIES[sel.cat]?.color }}>
-                {sel.region ? (sel.county || "Região") : CATEGORIES[sel.cat].label}
+              <span className="mx-cat" style={{ color: sel.region ? "#6d28d9" : styleOf(sel)?.color }}>
+                {sel.region ? (sel.county || "Região") : sel.cat === "pin" ? "Meu pin · " + styleOf(sel).label : CATEGORIES[sel.cat].label}
               </span>
               <button className="round small" onClick={() => setSel(null)} aria-label="Fechar"><X size={16} /></button>
             </div>
             <h3>{sel.name}</h3>
-            <p>{sel.text}</p>
+            <p>{sel.cat === "pin" ? (sel.note || "Sem nota.") : sel.text}</p>
+            {!sel.region && <p className="fine" style={{ marginTop: -4 }}><Navigation size={12} /> {regionOf(sel)}</p>}
             {!sel.region && (
               <div className="row">
                 <button className={"cta" + (visited[sel.id] ? " ghost" : "")} onClick={() => onToggleVisited(sel.id)}>
-                  <Check size={17} /> {visited[sel.id] ? "Desmarcar" : "Marcar como visitado"}
+                  <Check size={17} /> {visited[sel.id] ? "Visitado" : "Marcar visitado"}
                 </button>
-                {sel.cat === "pin" && <button className="cta ghost" onClick={() => { onRemovePin(sel.idx); setSel(null); }}>Remover</button>}
+                <button className={"round" + (favs["p:" + sel.id] ? " faved" : "")} onClick={() => onToggleFav("p:" + sel.id)} aria-label="Favoritar">
+                  <Heart size={19} fill={favs["p:" + sel.id] ? "currentColor" : "none"} />
+                </button>
+                {sel.cat === "pin" && <button className="round" onClick={() => setDraft({ ...sel })} aria-label="Editar"><Pencil size={18} /></button>}
               </div>
             )}
           </>
         ) : (
-          <p className="muted">Arraste para mover, faça pinça ou dois toques para zoom. Aproxime em Vice City para ver os bairros. Toque num marcador para ver detalhes e marcar como visitado. Use “+ Pin” para marcar flamingos, cartas e cofres.</p>
+          <p className="muted">Arraste, faça pinça ou dois toques para zoom. Use <b>Lista</b> para ver tudo por categoria, <b>filtros</b> para esconder o que já visitou e <b>+ Pin</b> para marcar flamingos, cartas, cofres e o que mais achar.</p>
         )}
         <p className="fine">Mapa ilustrativo original, com posições aproximadas a partir de informações públicas. Não é o mapa oficial do jogo.</p>
       </div>
+      )}
+
+      {draft && (
+        <div className="scrim" onClick={() => setDraft(null)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="grab" />
+            <h2>{draft.isNew ? "Novo pin" : "Editar pin"}</h2>
+            <div className="kinds">
+              {Object.entries(PIN_KINDS).map(([kd, cfg]) => (
+                <button key={kd} className={"kind" + (draft.kind === kd ? " on" : "")} onClick={() => setDraft({ ...draft, kind: kd })}>
+                  <span className="g" style={{ background: cfg.color }}>{cfg.glyph}</span>{cfg.label}
+                </button>
+              ))}
+            </div>
+            <input className="field" placeholder={`Nome (ex.: ${PIN_KINDS[draft.kind].label} #1)`} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+            <textarea className="field area sm" placeholder="Nota (como chegar, o que tem lá…)" value={draft.note || ""} onChange={(e) => setDraft({ ...draft, note: e.target.value })} />
+            <div className="row">
+              <button className="cta" onClick={() => {
+                const { isNew, idx, cat, ...pin } = draft;
+                const final = { ...pin, name: pin.name.trim() || `${PIN_KINDS[pin.kind].label} ${pins.length + 1}` };
+                if (isNew) onAddPin(final); else onUpdatePin(idx, final);
+                setSel(isNew ? null : { ...final, cat: "pin", idx });
+                setDraft(null);
+              }}><Check size={17} /> Salvar</button>
+              {!draft.isNew && <button className="round" onClick={() => { onRemovePin(draft.idx); setDraft(null); setSel(null); }} aria-label="Apagar"><Trash2 size={18} /></button>}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -80,9 +80,11 @@ export default function App() {
           {view === "inicio" && <HomeView {...ctx} />}
           {view === "guias" && <Guides {...ctx} />}
           {view === "mapa" && <MapTabs>{(
-            <LeonidaMap pins={state.pins} visited={state.visited || {}}
+            <LeonidaMap pins={state.pins} visited={state.visited || {}} favs={state.favs}
               onToggleVisited={(id) => update((st) => ({ visited: { ...(st.visited || {}), [id]: !(st.visited || {})[id] } }))}
+              onToggleFav={fav}
               onAddPin={(p) => update((st) => ({ pins: [...st.pins, p] }))}
+              onUpdatePin={(i, p) => update((st) => ({ pins: st.pins.map((x, j) => (j === i ? p : x)) }))}
               onRemovePin={(i) => update((st) => ({ pins: st.pins.filter((_, j) => j !== i) }))} />
           )}</MapTabs>}
           {view === "missoes" && <Missions {...ctx} />}
@@ -572,6 +574,7 @@ function Favorites({ state, openMission, go }) {
     if (t === "m") { const m = MISSIONS.find((x) => x.id === +id); return m && { k, kind: "Missão", name: m.name, sub: `Capítulo ${m.chapter}`, act: () => openMission(m) }; }
     if (t === "t") { const x = TROPHIES.find((y) => y.id === id); return x && { k, kind: "Troféu", name: x.name, sub: x.desc, act: () => go("trofeus") }; }
     if (t === "r") { const x = RADIOS.find((y) => y.id === id); return x && { k, kind: "Rádio", name: x.name, sub: x.genre, act: () => go("radio") }; }
+    if (t === "p") { const x = MARKERS.find((y) => y.id === id) || state.pins.find((y) => y.id === id); return x && { k, kind: "Lugar no mapa", name: x.name, sub: x.text || x.note, act: () => go("mapa") }; }
     if (t === "c") { const x = CHARACTERS.find((y) => y.name === id); return x && { k, kind: "Personagem", name: x.name, sub: x.role, act: () => go("personagens") }; }
   }).filter(Boolean);
   if (!items.length) return <div className="empty"><Heart size={40} /><p>Toque no coração em missões, troféus, rádios e personagens para guardá-los aqui.</p></div>;
