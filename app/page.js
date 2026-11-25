@@ -10,6 +10,7 @@ import {
 import { CHAPTERS, MISSIONS, TROPHIES, COMPLETION, RADIOS, CHARACTERS, TIPS, NEWS, REGIONS } from "../lib/data";
 import { useProgress, stats, applyPsn, useCloudSync } from "../lib/store";
 import { supabase } from "../lib/supabase";
+import { StationCover, TrophyIcon } from "../components/Art";
 
 const LeonidaMap = dynamic(() => import("../components/LeonidaMap"), { ssr: false });
 
@@ -351,9 +352,14 @@ function Trophies({ state, update, fav, premium, go }) {
       </div>
       {msg && <p className="pad">{msg}</p>}
       <div className="segs">
-        {["todos", "faltam", "platina", "ouro", "prata", "bronze"].map((x) => (
-          <button key={x} className={f === x ? "on" : ""} onClick={() => setF(x)}>{x}</button>
-        ))}
+        {["todos", "faltam", "platina", "ouro", "prata", "bronze"].map((x) => {
+          const n = ["todos", "faltam"].includes(x) ? null : TROPHIES.filter((t) => t.grade === x);
+          return (
+            <button key={x} className={(f === x ? "on" : "") + (n ? " gchip" : "")} onClick={() => setF(x)}>
+              {n && <TrophyIcon grade={x} size={20} />}{x}{n && <em>{n.filter((t) => state.trophies[t.id]).length}/{n.length}</em>}
+            </button>
+          );
+        })}
       </div>
       <label className="glass switchrow">
         <span><b>Mostrar ocultos</b><small>28 troféus ocultos contêm spoilers</small></span>
@@ -366,7 +372,10 @@ function Trophies({ state, update, fav, premium, go }) {
           const p = psn?.trophies?.[t.id];
           return (
             <li key={t.id} className={"glass trophy" + (done ? " done" : "")}>
-              <button className={"medal " + t.grade} onClick={() => toggle(t.id)} aria-label="Marcar">{done && <Check size={16} />}</button>
+              <button className="tbtn" onClick={() => toggle(t.id)} aria-label="Marcar">
+                <TrophyIcon grade={t.grade} size={44} dim={!done} />
+                {done && <span className="tcheck"><Check size={11} /></span>}
+              </button>
               <div className="grow" onClick={() => toggle(t.id)}>
                 <b>{hide ? "Troféu oculto" : t.name}</b>
                 <small>{hide ? "Ative “Mostrar ocultos” para ver." : t.desc}</small>
@@ -444,98 +453,83 @@ function Completion({ state, update, s }) {
 }
 
 /* ---------- Rádio ---------- */
-const toEmbed = (url) => {
-  const m = String(url).match(/open\.spotify\.com\/(?:intl-[a-z]+\/)?(album|playlist|track|artist|episode|show)\/([A-Za-z0-9]+)/);
-  return m ? `https://open.spotify.com/embed/${m[1]}/${m[2]}?utm_source=generator&theme=0` : null;
-};
 const spotifySearch = (q) => `https://open.spotify.com/search/${encodeURIComponent(q)}`;
-
-function SpotifyPlayer({ state, update }) {
-  const [link, setLink] = useState("");
-  const saved = state.spotify || [];
-  const current = state.spotifyNow || saved[0]?.url || null;
-  const embed = current ? toEmbed(current) : null;
-  function add() {
-    if (!toEmbed(link)) return alert("Cole um link do Spotify (álbum, playlist ou música).");
-    update((st) => ({ spotify: [{ url: link.trim(), added: Date.now() }, ...(st.spotify || [])].slice(0, 30), spotifyNow: link.trim() }));
-    setLink("");
-  }
-  return (
-    <div className="glass spotify">
-      <h4><Music size={17} /> Player Spotify</h4>
-      {embed ? (
-        <iframe src={embed} width="100%" height="352" loading="lazy" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" title="Spotify" />
-      ) : (
-        <p className="muted">Cole o link do álbum oficial, de uma playlist ou de uma música no Spotify para tocar aqui.</p>
-      )}
-      <div className="row">
-        <input className="field" placeholder="https://open.spotify.com/…" value={link} onChange={(e) => setLink(e.target.value)} />
-        <button className="pill sm solid" onClick={add}>Tocar</button>
-      </div>
-      {saved.length > 0 && (
-        <div className="mylib">
-          <small className="genre">Minha biblioteca no app</small>
-          {saved.map((x, i) => (
-            <div key={i} className="row between libitem">
-              <button className={"grow left" + (x.url === current ? " playing" : "")} onClick={() => update(() => ({ spotifyNow: x.url }))}>
-                <Disc3 size={15} /> {x.url.replace(/^https:\/\/open\.spotify\.com\/(intl-[a-z]+\/)?/, "").split("?")[0]}
-              </button>
-              <button className="favbtn" onClick={() => update((st) => ({ spotify: st.spotify.filter((_, j) => j !== i) }))} aria-label="Remover"><X size={15} /></button>
-            </div>
-          ))}
-        </div>
-      )}
-      <button className="cta ghost full" disabled title="Requer conectar sua conta Spotify (em breve)">
-        <Lock size={15} /> Salvar na minha biblioteca do Spotify · em breve
-      </button>
-    </div>
-  );
-}
+const songQuery = (x) => x.replace(" – ", " ").replace(/[()]/g, "");
 
 function Radios({ state, update, fav }) {
+  const [open, setOpen] = useState(null);
   const toggle = (id) => update((st) => ({ radios: { ...st.radios, [id]: !st.radios[id] } }));
+  const heard = RADIOS.filter((r) => state.radios[r.id]).length;
   return (
     <>
-      <SpotifyPlayer state={state} update={update} />
+      <div className="glass radio-head">
+        <div><b>{RADIOS.length} estações</b><small>{heard} ouvidas · toque numa capa para ver as músicas</small></div>
+        <div className="bar thin" style={{ width: 90 }}><span style={{ width: (heard / RADIOS.length) * 100 + "%" }} /></div>
+      </div>
+      <div className="covers">
+        {RADIOS.map((r) => (
+          <button key={r.id} className={"covercard" + (state.radios[r.id] ? " heard" : "")} onClick={() => setOpen(r)}>
+            <StationCover r={r} size={150} />
+            {state.radios[r.id] && <span className="heardtag"><Check size={12} /></span>}
+            <b>{r.name}</b>
+            <small>{r.genre}</small>
+          </button>
+        ))}
+      </div>
       <div className="glass album">
         <h4><Disc3 size={17} /> Trilha oficial</h4>
-        <p className="muted"><b>Grand Theft Auto VI: The Album</b> — 34 faixas originais; a edição Deluxe soma 57. <b>Trilha original do Justice</b> — 30 faixas, chega em 11 de dezembro.</p>
-        <div className="songs-list">
-          {ALBUM_SINGLES.map((x) => (
-            <a key={x.t} href={spotifySearch(`${x.t} ${x.a}`)} target="_blank" rel="noreferrer">♪ {x.t} <span>· {x.a}</span> <ExternalLink size={12} /></a>
-          ))}
-        </div>
+        <p className="muted"><b>Grand Theft Auto VI: The Album</b>: 34 faixas originais (57 na Deluxe). <b>Trilha original do Justice</b>: 30 faixas, chega em 11 de dezembro.</p>
+        <a className="sp-row" href={spotifySearch("Grand Theft Auto VI The Album")} target="_blank" rel="noreferrer">
+          <span className="sp-dot"><Music size={14} /></span> Abrir o álbum no Spotify <ExternalLink size={13} />
+        </a>
       </div>
-      <p className="muted pad">Toque no disco para marcar a rádio como ouvida. Há ainda 2 playlists únicas que contam para os 100% (uma delas é a do Kodak Black, The Sniper of La Perle).</p>
-      <ul className="cards">
-        {RADIOS.map((r, i) => (
-          <li key={r.id} className={"glass radio" + (state.radios[r.id] ? " on" : "")} style={{ "--h": (280 + i * 23) % 360 }}>
-            <button className="disc" onClick={() => toggle(r.id)} aria-label="Marcar como ouvida">{state.radios[r.id] ? <Check size={18} /> : <Radio size={18} />}</button>
-            <div className="grow">
-              <b>{r.name}</b>
-              <small className="genre">{r.genre}{r.tracks ? ` · ${r.tracks} faixas` : ""}</small>
-              <small>{r.hosts}</small>
-              {r.songs && r.songs.map((x) => (
-                <a key={x} className="songlink" href={spotifySearch(x.replace(" – ", " "))} target="_blank" rel="noreferrer">♪ {x} <ExternalLink size={11} /></a>
-              ))}
-              {r.secret && <small className="secret">{r.secret}</small>}
-              {!r.talk && (
-                <a className="songlink sp" href={spotifySearch(`${r.genre} ${r.hosts.split(",")[0]}`)} target="_blank" rel="noreferrer">
-                  <Music size={12} /> Ouvir algo parecido no Spotify
-                </a>
-              )}
+      <p className="pad">Há ainda 2 playlists únicas que contam para os 100% (uma é a do Kodak Black, The Sniper of La Perle).</p>
+
+      {open && (
+        <div className="scrim" onClick={() => setOpen(null)}>
+          <div className="sheet station" onClick={(e) => e.stopPropagation()}>
+            <div className="grab" />
+            <div className="station-top">
+              <StationCover r={open} size={112} />
+              <div className="grow">
+                <p className="eyebrow">{open.talk ? "Talk radio" : `${open.tracks} faixas`}</p>
+                <h2>{open.name}</h2>
+                <p className="meta dark">{open.genre} · {open.hosts}</p>
+              </div>
+              <button className="round small" onClick={() => setOpen(null)} aria-label="Fechar"><X size={16} /></button>
             </div>
-            <FavBtn on={state.favs["r:" + r.id]} onClick={() => fav("r:" + r.id)} />
-          </li>
-        ))}
-      </ul>
+            {open.secret && <p className="secretline">🔒 {open.secret}</p>}
+            {open.songs ? (
+              <ul className="tracklist">
+                {open.songs.map((x, i) => {
+                  const [artist, title] = x.split(" – ");
+                  return (
+                    <li key={x}>
+                      <a href={spotifySearch(songQuery(x))} target="_blank" rel="noreferrer">
+                        <span className="tn">{i + 1}</span>
+                        <span className="grow"><b>{title || x}</b><small>{title ? artist : ""}</small></span>
+                        <span className="sp-dot"><Music size={13} /></span>
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : <p className="muted">Estação só de conversa, sem músicas.</p>}
+            {open.songs && <p className="fine">Toque numa música para abrir no Spotify. Destaques da lista completa de {open.tracks} faixas.</p>}
+            <div className="row">
+              <button className={"cta" + (state.radios[open.id] ? " ghost" : "")} onClick={() => toggle(open.id)}>
+                <Check size={17} /> {state.radios[open.id] ? "Ouvida" : "Marcar como ouvida"}
+              </button>
+              <button className={"round" + (state.favs["r:" + open.id] ? " faved" : "")} onClick={() => fav("r:" + open.id)} aria-label="Favoritar">
+                <Heart size={20} fill={state.favs["r:" + open.id] ? "currentColor" : "none"} />
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }
-const ALBUM_SINGLES = [
-  { t: "That's It", a: "Yung Lean feat. Future e Metro Boomin" },
-  { t: "RHYNO", a: "Travis Scott" },
-];
 
 /* ---------- Personagens ---------- */
 const CHAR_STYLE = {
